@@ -19,7 +19,7 @@ type State =
     { Creatures: Map<CreatureID, Creature>
     }
     member this.TransformCreatures f = { this with Creatures = f this.Creatures}
-    member this.GetNavMesh (start: IntVec.t) =
+    member this.FindPath (start: IntVec.t) (finish: IntVec.t) =
         let width =
             Map.toSeq this.Creatures
             |> Seq.map (snd >> _.Pos >> _.X)
@@ -32,7 +32,7 @@ type State =
 
         let lattice = Graph.Simple<IntVec.t>.Lattice width height
 
-        Graph.Simple.Dijkstra start lattice
+        Graph.Simple.Dijkstra start finish lattice
 
 and Creature =
     { Pos: IntVec.t
@@ -119,7 +119,7 @@ let update state msg : (State*Msg list) =
         match Map.tryFind creatureID state.Creatures with
         | None -> pass
         | Some creature ->
-            match state.GetNavMesh creature.Pos destination with
+            match state.FindPath creature.Pos destination with
             | nextPos :: _ -> state, [MoveCreatureTo (creatureID, nextPos)]
             | [] -> state, []
 

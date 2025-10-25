@@ -57,7 +57,7 @@ type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
         |> Set
         |> Simple
 
-    static member Dijkstra (start: 'vertex) (graph: Simple<'vertex>) =
+    static member Dijkstra (start: 'vertex) (finish: 'vertex) (graph: Simple<'vertex>) =
         let initPriorityQ =
             seq
                 { yield!
@@ -70,37 +70,27 @@ type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
                 }
             |> Map<'vertex, float32*'vertex option>
 
-        let rec step (processedVertices: Set<'vertex>) (unprocessedVertices: Set<'vertex>) (queue: Map<'vertex, float32*option<'vertex>>) =
-            match Set.count unprocessedVertices with
-            | 0 ->
-                let () = for KeyValue (k, v) in queue do printfn "%A" (k, v)
-                fun targetVertex ->
-                    let toPreviousVertex =
-                        Map.toSeq queue
-                        |> Seq.map (function v, (_, previous) -> (v, previous))
-                        |> Seq.choose
-                            (function
-                                | (v, Some previous) -> Some (v, previous)
-                                | _ -> None
-                            )
-                        |> Map
-                    let rec aux acc currentVertex =
-                        match Map.tryFind currentVertex toPreviousVertex with
-                        | None when currentVertex = start -> acc
-                        | None -> failwith "there is no path"
-                        | Some nextVertex -> aux (currentVertex :: acc) nextVertex
-                    in aux [] targetVertex
-            | _ ->
+        let rec step (processedVertices: Map<'vertex, 'vertex>) (queue: Map<'vertex, float32*option<'vertex>>) =
+
+            if processedVertices.ContainsKey finish then
+                let rec aux v path =
+                    match Map.tryFind v processedVertices with
+                    | None when v = start -> path
+                    | None -> []
+                    | Some previousVertex -> aux previousVertex (v :: path)
+                in aux finish []
+            else
 
             let currentVertex =
-                unprocessedVertices
-                |> Seq.minBy (fun vertex -> Map.find vertex queue |> fst)
+                Map.toSeq queue
+                |> Seq.minBy (function _, (cost, _) -> cost)
+                |> fst
 
             let newDistance = (Map.find currentVertex queue |> fst) + 1f
             
             Set.intersect
                 (graph.GetNeighbours currentVertex)
-                unprocessedVertices
+                (Set queue.Keys)
             |> Set.fold
                 (fun q unexploredNeighbour ->
                     match Map.find unexploredNeighbour queue with
@@ -108,6 +98,15 @@ type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
                     | _ -> q
                 )
                 queue
-            |> step (processedVertices.Add currentVertex) (unprocessedVertices.Remove currentVertex)
+            |> fun queue' ->
+                match Map.tryFind currentVertex queue |> Option.bind snd with
+                | Some v ->
+                    step
+                        (processedVertices.Add (currentVertex, v))
+                        (queue'.Remove currentVertex)
+                | None ->
+                    step
+                        processedVertices
+                        (queue'.Remove currentVertex)
             
-        in step Set.empty (graph.Vertices) initPriorityQ
+        in step Map.empty initPriorityQ
