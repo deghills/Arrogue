@@ -96,25 +96,18 @@ type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
                 unprocessedVertices
                 |> Seq.minBy (fun vertex -> Map.find vertex queue |> fst)
 
-            match
-                Set.intersect
-                    (graph.GetNeighbours currentVertex)
-                    unprocessedVertices
-                |> Seq.tryHead
-            with
-            | None ->
-                step
-                    (processedVertices.Add currentVertex)
-                    (unprocessedVertices.Remove currentVertex)
-                    queue
-            | Some v ->
-                let distanceToV = (Map.find currentVertex queue |> fst) + 1f
-                step
-                    (processedVertices.Add currentVertex)
-                    (unprocessedVertices.Remove currentVertex)
-                    (match Map.find v queue |> fst with
-                        | oldDistance when distanceToV < oldDistance -> queue.Add (v, (distanceToV, Some currentVertex))
-                        | _ -> queue
-                    )
+            let newDistance = (Map.find currentVertex queue |> fst) + 1f
+            
+            Set.intersect
+                (graph.GetNeighbours currentVertex)
+                unprocessedVertices
+            |> Set.fold
+                (fun q unexploredNeighbour ->
+                    match Map.find unexploredNeighbour queue with
+                    | (oldDistance, _) when newDistance < oldDistance -> Map.add unexploredNeighbour (newDistance, Some currentVertex) q
+                    | _ -> q
+                )
+                queue
+            |> step (processedVertices.Add currentVertex) (unprocessedVertices.Remove currentVertex)
             
         in step Set.empty (graph.Vertices) initPriorityQ

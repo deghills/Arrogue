@@ -51,14 +51,15 @@ type Msg =
     | PlayerTurn of PlayerAction
     | AttackCreature of CreatureID*CreatureID
     | MoveCreatureTo of CreatureID * IntVec.t
+    | MoveCreatureToward of CreatureID * IntVec.t
     | EnvironmentTurn
     | GameOver
 
 let init =
     { Creatures =
         Map
-            [ CreatureID.player, { Pos = IntVec.Vec (10, 10); Token = '@'; Stats = { Health = 100; Strength = 10 } }
-            ; enum<CreatureID> 0, { Pos = IntVec.Vec (20, 20); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
+            [ CreatureID.player, { Pos = IntVec.Vec (20, 20); Token = '@'; Stats = { Health = 100; Strength = 10 } }
+            ; enum<CreatureID> 0, { Pos = IntVec.Vec (15, 15); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
     }
 let view =
     _.Creatures
@@ -114,6 +115,14 @@ let update state msg : (State*Msg list) =
         |> state.TransformCreatures
         |> appendMsgs []
 
+    | MoveCreatureToward (creatureID, destination) ->
+        match Map.tryFind creatureID state.Creatures with
+        | None -> pass
+        | Some creature ->
+            match state.GetNavMesh creature.Pos destination with
+            | nextPos :: _ -> state, [MoveCreatureTo (creatureID, nextPos)]
+            | [] -> state, []
+
     | AttackCreature (attackerID, targetID) ->
         Map.tryFind attackerID state.Creatures
         |> Option.map
@@ -127,28 +136,20 @@ let update state msg : (State*Msg list) =
             pass
 
     | EnvironmentTurn ->
-        Map.tryFind CreatureID.player state.Creatures
-        |> Option.toResult gameover
-        |> Result.map
-            (fun player ->
-                List.collect
-                    (function
-                    | CreatureID.player, _ ->
-                        []
-                    | npcID, npc ->
-                        // maybe ought to make a "MoveCreatureToward" Msg, so I can delegate instead of doing pathfinding in this branch
-                        match state.GetNavMesh npc.Pos player.Pos with
-                        | nextPos :: _ -> [MoveCreatureTo (npcID, nextPos)]
-                        | [] -> []
-                        (*match pathToPlayer with
-                        | [] -> [AttackCreature (npcID, CreatureID.player)]
-                        | nextSpot :: _ -> [MoveCreatureTo (npcID, nextSpot)]*)
-                    )
-                    (Map.toList state.Creatures)
-            )
-        |> Result.map appendMsgs
-        |> Result.map ((|>) state)
-        |> function Ok result | Error result -> result
+        match Map.tryFind CreatureID.player state.Creatures with
+        | None ->
+            gameover
+
+        | Some player ->
+            state,
+            List.choose
+                (function
+                | CreatureID.player, _ ->
+                    None
+                | npcID, _ ->
+                    MoveCreatureToward (npcID, player.Pos) |> Some
+                )
+                (Map.toList state.Creatures)
 
 let subscriptions (tick: RayPlatform.TickInfo) (s: State) =
     [ if tick[KeyboardKey.KEY_W].IsPressed then yield IntVec.Vec (0, -1) |> PlayerAction.TryTile |> PlayerTurn

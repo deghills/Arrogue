@@ -14,9 +14,7 @@ module Option =
 module ArrayJagged =
     let init rows columns initializer =
         [| for i in 0..rows - 1 ->
-            [| for j in 0..columns - 1 ->
-                initializer i j
-            |]
+            [| for j in 0..columns - 1 -> initializer i j |]
         |]
 
     let row i (arr: 'a array array) =
