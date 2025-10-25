@@ -7,8 +7,6 @@ let cellSize = 50
 let drawChar (IntVec.Vec (x, y)) (chr: char) =
     Raylib.DrawText (string chr, x * cellSize, y * cellSize, cellSize, Raylib.GREEN)
 
-Raylib.InitWindow (1920, 1080, "i fucking hate my life")
-
 type CreatureID =
     | player = -3
 
@@ -21,6 +19,20 @@ type State =
     { Creatures: Map<CreatureID, Creature>
     }
     member this.TransformCreatures f = { this with Creatures = f this.Creatures}
+    member this.GetNavMesh (start: IntVec.t) =
+        let width =
+            Map.toSeq this.Creatures
+            |> Seq.map (snd >> _.Pos >> _.X)
+            |> Seq.max
+
+        let height =
+            Map.toSeq this.Creatures
+            |> Seq.map (snd >> _.Pos >> _.Y)
+            |> Seq.max
+
+        let lattice = Graph.Simple<IntVec.t>.Lattice width height
+
+        Graph.Simple.Dijkstra start lattice
 
 and Creature =
     { Pos: IntVec.t
@@ -38,7 +50,7 @@ type PlayerAction =
 type Msg =
     | PlayerTurn of PlayerAction
     | AttackCreature of CreatureID*CreatureID
-    | MoveCreatureToPosition of CreatureID * IntVec.t
+    | MoveCreatureTo of CreatureID * IntVec.t
     | EnvironmentTurn
     | GameOver
 
@@ -79,16 +91,16 @@ let update state msg : (State*Msg list) =
                 with
                 | Some (colliderID, _) ->
                     ( state
-                    , [AttackCreature (CreatureID.player, colliderID)]
+                    , [AttackCreature (CreatureID.player, colliderID); EnvironmentTurn]
                     ) |> Error
                 | None ->
                     ( state
-                    , [MoveCreatureToPosition (CreatureID.player, nextPlayerPos)]
+                    , [MoveCreatureTo (CreatureID.player, nextPlayerPos); EnvironmentTurn]
                     ) |> Ok
             )
         |> function Ok result | Error result -> result
 
-    | MoveCreatureToPosition (creatureID, newPos) ->
+    | MoveCreatureTo (creatureID, newPos) ->
         Map.change
             creatureID
             (fun player ->
@@ -125,10 +137,12 @@ let update state msg : (State*Msg list) =
                         []
                     | npcID, npc ->
                         // maybe ought to make a "MoveCreatureToward" Msg, so I can delegate instead of doing pathfinding in this branch
-                        let pathToPlayer: IntVec.t list = failwith "implement dijkstra/A* algorithm"
-                        match pathToPlayer with
+                        match state.GetNavMesh npc.Pos player.Pos with
+                        | nextPos :: _ -> [MoveCreatureTo (npcID, nextPos)]
+                        | [] -> []
+                        (*match pathToPlayer with
                         | [] -> [AttackCreature (npcID, CreatureID.player)]
-                        | nextSpot :: _ -> [MoveCreatureToPosition (npcID, nextSpot)]
+                        | nextSpot :: _ -> [MoveCreatureTo (npcID, nextSpot)]*)
                     )
                     (Map.toList state.Creatures)
             )
