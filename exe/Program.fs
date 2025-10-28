@@ -26,34 +26,84 @@ type Creature =
         { c2 with Stats.Health = c2.Stats.Health - c1.Stats.Strength }
         |> function dead when dead.Stats.Health < 1 -> None | alive -> Some alive
 
-type Tile =
-    | Empty
-    | Creature of Creature
-    | Wall of IntVec
-
-type TileMap =
-    val tiles: array<array<Tile>>
-    member this.TrySpawn (creature: Creature) (pos: IntVec) =
-        ()
-
-    new (initializer: int -> int -> Tile, width, height) =
-        { tiles =
-            Array.init
-                width
-                (fun col ->
-                    Array.init
-                        height
-                        (fun row -> initializer col row)
-                )
-        }
-
 type State =
     { Creatures: Map<CreatureID, Creature>
     ; Walls: Set<IntVec>
     }
     member this.TransformCreatures f = { this with Creatures = f this.Creatures }
+
+    ///Dijkstra/A*
     member this.FindPath (start: IntVec) (finish: IntVec) =
-        let width =
+        let occupiedTiles =
+            Map.toSeq this.Creatures
+            |> Seq.map (snd >> _.Pos)
+            |> Set
+            |> Set.union this.Walls
+            |> Set.remove start
+            |> Set.remove finish
+            
+        let getNeighbours (p: IntVec) =
+            Set.difference
+                (Set.empty
+                    .Add(p + IntVec.Up)
+                    .Add(p + IntVec.Up + IntVec.Right)
+                    .Add(p + IntVec.Up + IntVec.Left)
+                    .Add(p + IntVec.Left)
+                    .Add(p + IntVec.Right)
+                    .Add(p + IntVec.Down)
+                    .Add(p + IntVec.Down + IntVec.Right)
+                    .Add(p + IntVec.Down + IntVec.Left))
+                occupiedTiles
+
+        let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, float32*option<IntVec>>) =
+            match Map.tryFind finish visitedTiles with
+            | Some penult ->
+                let rec buildPath acc current =
+                    match Map.tryFind current visitedTiles with
+                    | Some next ->
+                        buildPath (current :: acc) next
+                    | None when current = start ->
+                        acc
+                    | None ->
+                        [] //no path exists
+                in buildPath [finish] penult
+
+            | None when priorityQueue.IsEmpty ->
+                [] // no path exists
+
+            | None ->
+                let currentTile, (currentDist, previousTileOpt) =
+                    priorityQueue
+                    |> Map.toSeq
+                    |> Seq.minBy (snd >> fst)
+
+                let neighbours = Set.difference (getNeighbours currentTile) (seq { start; yield! visitedTiles.Keys} |> Set)
+                let newDist = currentDist + 1f + (IntVec.NormEuclidean (finish - currentTile))
+                let (|GreaterDistance|_|) i = i > newDist
+
+                let priorityQueue' =
+                    Set.fold
+                        (fun acc neighbour ->
+                            match Map.tryFind neighbour acc with
+                            | None
+                            | Some (GreaterDistance, _)
+                                -> Map.add neighbour (newDist, Some currentTile) acc
+                            | _ -> acc
+                        )
+                        priorityQueue
+                        neighbours
+                    |> Map.remove currentTile
+
+                let visitedTiles' =
+                    match previousTileOpt with
+                    | Some previousTile ->
+                        Map.add currentTile previousTile visitedTiles
+                    | None ->
+                        visitedTiles
+            
+                aux visitedTiles' priorityQueue'
+        in aux Map.empty (Map.add start (0f, None) Map.empty)
+        (*let width =
             Map.toSeq this.Creatures
             |> Seq.map (snd >> _.Pos >> _.X)
             |> Seq.append (this.Walls |> Seq.map _.X)
@@ -61,11 +111,9 @@ type State =
 
         let height =
             Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos >> _.Y)
+            |> Seq.map (snd >> _.Pos >> _.X)
+            |> Seq.append (this.Walls |> Seq.map _.X)
             |> Seq.max
-
-        //i gotta figure out how to make an "infinite" plane work with dijkstra's algorithm
-        //lazy data structures are hard to think about
 
         let lattice =
             this.Walls
@@ -73,7 +121,7 @@ type State =
                 (fun (graph: Graph.Simple<IntVec>) vertexToRemove -> graph.RemoveVertex vertexToRemove)
                 (Graph.Simple<IntVec>.Lattice width height)
 
-        Graph.Simple.Dijkstra start finish lattice
+        Graph.Simple.Dijkstra start finish lattice*)
 
 type PlayerAction =
     | TryTile of IntVec
@@ -91,14 +139,22 @@ let init =
         Map
             [ CreatureID.player, { Pos = IntVec.Vec (20, 20); Token = '@'; Stats = { Health = 100; Strength = 10 } }
             ; enum<CreatureID> 0, { Pos = IntVec.Vec (15, 15); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
-    ; Walls = Set []
+    ; Walls =
+        Set
+            [ for j in 0..20 do if j <> 13 then yield Vec (17, j) ]
     }
-let view =
-    _.Creatures
-    >> Map.fold
-        (fun acc _ c -> (Creature.View c ||> Map.add) acc)
+let view state =
+    state.Creatures
+    |> Map.toSeq
+    |> Seq.fold
+        (fun acc (_, c) -> Map.add c.Pos c.Token acc)
         Map.empty
-    >> Map.iter drawChar
+    |> fun charmap ->
+        Seq.fold
+            (fun acc wallPos -> Map.add wallPos 'H' acc)
+            charmap
+            state.Walls
+    |> Map.iter drawChar
 
 let update state msg : (State*Msg list) =
     let appendMsgs msgs x = (x, msgs)
@@ -137,7 +193,10 @@ let update state msg : (State*Msg list) =
         Map.change
             creatureID
             (fun player ->
-                let spaceIsOccupied = Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
+                let spaceIsOccupied =
+                    Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
+                    //||
+                    //Set.contains newPos state.Walls
                 if spaceIsOccupied then
                     player
                 else

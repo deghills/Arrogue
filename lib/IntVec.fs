@@ -10,7 +10,16 @@ type IntVec =
     member this.Y = match this with Vec (_, y) -> y
 
     /// Chebyshev norm
-    static member Norm = function Vec (x, y) -> max (abs x) (abs y)
+    static member Norm (Vec (x, y)) = max (abs x) (abs y)
+
+    static member NormEuclidean (Vec (x, y)) =
+        let sqr f = f * f
+        System.MathF.Sqrt
+            ( sqr (float32 x)
+            + sqr (float32 y) )
+
+    // Taxi-cab norm
+    //static member Norm = function Vec (x, y) -> x + y
 
     static member Zero = Vec (0, 0)
     static member Up = Vec (0, -1)
