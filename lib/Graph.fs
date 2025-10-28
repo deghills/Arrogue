@@ -1,7 +1,6 @@
-﻿module Graph
+﻿namespace Rogue.Lib.Graph
 
-open System
-open ProjectUtils
+open Rogue.Lib
 
 ///undirected, unweighted
 [<Struct>]
@@ -18,8 +17,6 @@ type Edge<'vertex when 'vertex : comparison> =
         match this.vertices with
         | complement, V | V, complement -> Some complement
         | _ -> None
-
-type Infinity = Infinity
 
 type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
     member _.RemoveVertex (v: 'vertex) =
@@ -43,10 +40,10 @@ type Simple<'vertex when 'vertex : comparison> (edges: Set<Edge<'vertex>>) =
         seq
             { for i in 0..width - 1 do
                 for j in 0..height - 1 do
-                    let topLeft = IntVec.Vec (i, j)
-                    let topRight = topLeft + IntVec.right
-                    let bottomLeft = topLeft + IntVec.down
-                    let bottomRight = bottomLeft + IntVec.right
+                    let topLeft = Vec (i, j)
+                    let topRight = topLeft + IntVec.Right
+                    let bottomLeft = topLeft + IntVec.Down
+                    let bottomRight = bottomLeft + IntVec.Right
                     yield Edge (topLeft, topRight)
                     yield Edge (topLeft, bottomRight)
                     yield Edge (topLeft, bottomLeft)

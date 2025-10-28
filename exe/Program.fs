@@ -1,41 +1,23 @@
-﻿open System
-open ZeroElectric.Vinculum
+﻿open ZeroElectric.Vinculum
+open Rogue.Lib
 open ProjectUtils
+open RayPlatform
 
 let cellSize = 50
 
-let drawChar (IntVec.Vec (x, y)) (chr: char) =
+let drawChar (Vec (x, y)) (chr: char) =
     Raylib.DrawText (string chr, x * cellSize, y * cellSize, cellSize, Raylib.GREEN)
 
 type CreatureID =
-    | player = -3
+    | player = -69
 
 type CreatureSheet =
     { Health: int
     ; Strength: int
     }
-  
-type State =
-    { Creatures: Map<CreatureID, Creature>
-    }
-    member this.TransformCreatures f = { this with Creatures = f this.Creatures}
-    member this.FindPath (start: IntVec.t) (finish: IntVec.t) =
-        let width =
-            Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos >> _.X)
-            |> Seq.max
 
-        let height =
-            Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos >> _.Y)
-            |> Seq.max
-
-        let lattice = Graph.Simple<IntVec.t>.Lattice width height
-
-        Graph.Simple.Dijkstra start finish lattice
-
-and Creature =
-    { Pos: IntVec.t
+type Creature =
+    { Pos: IntVec
     ; Token: char
     ; Stats: CreatureSheet
     }
@@ -44,14 +26,63 @@ and Creature =
         { c2 with Stats.Health = c2.Stats.Health - c1.Stats.Strength }
         |> function dead when dead.Stats.Health < 1 -> None | alive -> Some alive
 
+type Tile =
+    | Empty
+    | Creature of Creature
+    | Wall of IntVec
+
+type TileMap =
+    val tiles: array<array<Tile>>
+    member this.TrySpawn (creature: Creature) (pos: IntVec) =
+        ()
+
+    new (initializer: int -> int -> Tile, width, height) =
+        { tiles =
+            Array.init
+                width
+                (fun col ->
+                    Array.init
+                        height
+                        (fun row -> initializer col row)
+                )
+        }
+
+type State =
+    { Creatures: Map<CreatureID, Creature>
+    ; Walls: Set<IntVec>
+    }
+    member this.TransformCreatures f = { this with Creatures = f this.Creatures }
+    member this.FindPath (start: IntVec) (finish: IntVec) =
+        let width =
+            Map.toSeq this.Creatures
+            |> Seq.map (snd >> _.Pos >> _.X)
+            |> Seq.append (this.Walls |> Seq.map _.X)
+            |> Seq.max
+
+        let height =
+            Map.toSeq this.Creatures
+            |> Seq.map (snd >> _.Pos >> _.Y)
+            |> Seq.max
+
+        //i gotta figure out how to make an "infinite" plane work with dijkstra's algorithm
+        //lazy data structures are hard to think about
+
+        let lattice =
+            this.Walls
+            |> Set.fold
+                (fun (graph: Graph.Simple<IntVec>) vertexToRemove -> graph.RemoveVertex vertexToRemove)
+                (Graph.Simple<IntVec>.Lattice width height)
+
+        Graph.Simple.Dijkstra start finish lattice
+
 type PlayerAction =
-    | TryTile of IntVec.t
+    | TryTile of IntVec
 
 type Msg =
     | PlayerTurn of PlayerAction
     | AttackCreature of CreatureID*CreatureID
-    | MoveCreatureTo of CreatureID * IntVec.t
-    | MoveCreatureToward of CreatureID * IntVec.t
+    | MoveCreatureTo of CreatureID * IntVec
+    | MoveCreatureToward of CreatureID * IntVec
     | EnvironmentTurn
     | GameOver
 
@@ -60,6 +91,7 @@ let init =
         Map
             [ CreatureID.player, { Pos = IntVec.Vec (20, 20); Token = '@'; Stats = { Health = 100; Strength = 10 } }
             ; enum<CreatureID> 0, { Pos = IntVec.Vec (15, 15); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
+    ; Walls = Set []
     }
 let view =
     _.Creatures
