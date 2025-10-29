@@ -105,25 +105,6 @@ type State =
             | path ->
                 path
         in aux Map.empty (Map.add start (0f, None) Map.empty)
-        (*let width =
-            Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos >> _.X)
-            |> Seq.append (this.Walls |> Seq.map _.X)
-            |> Seq.max
-
-        let height =
-            Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos >> _.X)
-            |> Seq.append (this.Walls |> Seq.map _.X)
-            |> Seq.max
-
-        let lattice =
-            this.Walls
-            |> Set.fold
-                (fun (graph: Graph.Simple<IntVec>) vertexToRemove -> graph.RemoveVertex vertexToRemove)
-                (Graph.Simple<IntVec>.Lattice width height)
-
-        Graph.Simple.Dijkstra start finish lattice*)
 
 type PlayerAction =
     | TryTile of IntVec
