@@ -56,7 +56,7 @@ type State =
                     .Add(p + IntVec.Down + IntVec.Left))
                 occupiedTiles
 
-        let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, float32*option<IntVec>>) =
+        let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, int*option<IntVec>>) =
             let rec checkPath acc current =
                 match Map.tryFind current visitedTiles with
                 | Some next ->
@@ -67,44 +67,46 @@ type State =
                     [] //no path exists
             in
             match checkPath [] finish with
-            | [] when priorityQueue.IsEmpty ->
-                []
-
             | [] ->
-                let currentTile, (currentDist, previousTileOpt) =
+                match
                     priorityQueue
                     |> Map.toSeq
-                    |> Seq.minBy (snd >> fst)
+                    |> Seq.sortBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
+                    |> Seq.tryHead
+                with
+                | None -> [] //no path exists
+                | Some (currentTile, (currentDist, previousTileOpt)) ->
 
-                let neighbours = Set.difference (getNeighbours currentTile) (Set visitedTiles.Keys) |> Set.remove start
-                let newDist = currentDist + 1f + (IntVec.NormEuclidean (finish - currentTile))
-                let (|GreaterDistance|_|) i = i > newDist
+                let neighbours =
+                    Set.difference
+                        (getNeighbours currentTile)
+                        (Set visitedTiles.Keys)
+                    |> Set.remove start
+                let newDist = currentDist + 1 + (*heuristic*)(IntVec.Norm (finish - currentTile))
+                let (|HigherCostDistance|_|) i = i > newDist
+            
+                aux
+                    ( match previousTileOpt with
+                    | Some previousTile ->
+                        Map.add currentTile previousTile visitedTiles
+                    | None ->
+                        visitedTiles )
 
-                let priorityQueue' =
-                    Set.fold
+                    ( Set.fold
                         (fun acc neighbour ->
                             match Map.tryFind neighbour acc with
                             | None
-                            | Some (GreaterDistance, _)
+                            | Some (HigherCostDistance, _)
                                 -> Map.add neighbour (newDist, Some currentTile) acc
                             | _ -> acc
                         )
                         priorityQueue
                         neighbours
-                    |> Map.remove currentTile
-
-                let visitedTiles' =
-                    match previousTileOpt with
-                    | Some previousTile ->
-                        Map.add currentTile previousTile visitedTiles
-                    | None ->
-                        visitedTiles
-            
-                aux visitedTiles' priorityQueue'
+                    |> Map.remove currentTile )
 
             | path ->
                 path
-        in aux Map.empty (Map.add start (0f, None) Map.empty)
+        in aux Map.empty (Map.add start (0, None) Map.empty)
 
 type PlayerAction =
     | TryTile of IntVec

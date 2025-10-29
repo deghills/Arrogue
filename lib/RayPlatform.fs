@@ -6,6 +6,8 @@ module RayPlatform =
     open System.Numerics
     open ZeroElectric.Vinculum
 
+    let (|PrintAndPass|) x = let () = printfn "%A" x in x
+
     [<Struct>]
     type ButtonInfo =
         val private getPressed: unit -> bool
