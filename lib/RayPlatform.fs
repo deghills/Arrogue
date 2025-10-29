@@ -40,12 +40,6 @@ module RayPlatform =
         member _.Item(k: KeyboardKey) = ButtonInfo k
         member _.Item(m: MouseButton) = ButtonInfo m
         member _.PressedKeys = pressedKeys
-        member this.WASD =
-            let float32 = function true -> 1f | false -> 0f
-            ( float32 this[KeyboardKey.KEY_D].IsDown - float32 this[KeyboardKey.KEY_A].IsDown
-            , float32 this[KeyboardKey.KEY_S].IsDown - float32 this[KeyboardKey.KEY_W].IsDown )
-            |> Vector2
-            |> Vector2.Normalize
 
     type Config =
         { Resolution: int*int
@@ -59,12 +53,12 @@ module RayPlatform =
             { Resolution = 1920, 1080
             ; FPS = 120
             ; TextSize = 16
-            ; BackgroundColour = Raylib.BEIGE
+            ; BackgroundColour = Raylib.BLACK
             ; HideCursor = false
             ; Fullscreen = true
             }
 
-    type MsgQueue<'msg>() =
+    (*type MsgQueue<'msg>() =
         let queue = Collections.Concurrent.ConcurrentQueue<'msg>()
         let mutable current = None
         let _enumerator() =
@@ -90,7 +84,7 @@ module RayPlatform =
                 _enumerator()
 
             member _.GetEnumerator (): Collections.IEnumerator = 
-                _enumerator()
+                _enumerator()*)
 
     let run
         (cfg: Config)

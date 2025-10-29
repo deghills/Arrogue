@@ -6,7 +6,7 @@ open RayPlatform
 let cellSize = 50
 
 let drawChar (Vec (x, y)) (chr: char) =
-    Raylib.DrawText (string chr, x * cellSize, y * cellSize, cellSize, Raylib.GREEN)
+    Raylib.DrawText (string chr, x * cellSize, y * cellSize, cellSize, Raylib.RAYWHITE)
 
 type CreatureID =
     | player = -69
@@ -33,7 +33,7 @@ type State =
 
     member this.TransformCreatures f = { this with Creatures = f this.Creatures }
 
-    ///Dijkstra/A*
+    ///Dijkstra/A* (Euclidean norm heuristic)
     member this.FindPath (start: IntVec) (finish: IntVec) =
         let occupiedTiles =
             Map.toSeq this.Creatures
@@ -76,7 +76,7 @@ type State =
                     |> Map.toSeq
                     |> Seq.minBy (snd >> fst)
 
-                let neighbours = Set.difference (getNeighbours currentTile) (seq { start; yield! visitedTiles.Keys} |> Set)
+                let neighbours = Set.difference (getNeighbours currentTile) (Set visitedTiles.Keys) |> Set.remove start
                 let newDist = currentDist + 1f + (IntVec.NormEuclidean (finish - currentTile))
                 let (|GreaterDistance|_|) i = i > newDist
 
