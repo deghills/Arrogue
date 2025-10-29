@@ -30,6 +30,7 @@ type State =
     { Creatures: Map<CreatureID, Creature>
     ; Walls: Set<IntVec>
     }
+
     member this.TransformCreatures f = { this with Creatures = f this.Creatures }
 
     ///Dijkstra/A*
@@ -56,22 +57,20 @@ type State =
                 occupiedTiles
 
         let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, float32*option<IntVec>>) =
-            match Map.tryFind finish visitedTiles with
-            | Some penult ->
-                let rec buildPath acc current =
-                    match Map.tryFind current visitedTiles with
-                    | Some next ->
-                        buildPath (current :: acc) next
-                    | None when current = start ->
-                        acc
-                    | None ->
-                        [] //no path exists
-                in buildPath [finish] penult
+            let rec checkPath acc current =
+                match Map.tryFind current visitedTiles with
+                | Some next ->
+                    checkPath (current :: acc) next
+                | None when current = start ->
+                    acc
+                | None ->
+                    [] //no path exists
+            in
+            match checkPath [] finish with
+            | [] when priorityQueue.IsEmpty ->
+                []
 
-            | None when priorityQueue.IsEmpty ->
-                [] // no path exists
-
-            | None ->
+            | [] ->
                 let currentTile, (currentDist, previousTileOpt) =
                     priorityQueue
                     |> Map.toSeq
@@ -102,6 +101,9 @@ type State =
                         visitedTiles
             
                 aux visitedTiles' priorityQueue'
+
+            | path ->
+                path
         in aux Map.empty (Map.add start (0f, None) Map.empty)
         (*let width =
             Map.toSeq this.Creatures
@@ -151,7 +153,7 @@ let view state =
         Map.empty
     |> fun charmap ->
         Seq.fold
-            (fun acc wallPos -> Map.add wallPos 'H' acc)
+            (fun acc wallPos -> Map.add wallPos '=' acc)
             charmap
             state.Walls
     |> Map.iter drawChar
