@@ -71,10 +71,15 @@ type State =
                 match
                     priorityQueue
                     |> Map.toSeq
+                    
+                    (* technically chebyshev norm says that ||(x, 0)|| = ||(x, x)||, which can lead to unnatural looking pathing
+                    ** even though it's still technically an optimal path under the chebyshev norm.
+                    ** for multiple optimal paths, tie-breaking with the manhattan distance here
+                    ** will choose the one that tries to intercept the target's x/y axes *)
                     |> Seq.sortBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
                     |> Seq.tryHead
                 with
-                | None -> [] //no path exists
+                | None -> [] //queue is empty, no path exists
                 | Some (currentTile, (currentDist, previousTileOpt)) ->
 
                 let neighbours =
