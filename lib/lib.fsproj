@@ -9,7 +9,6 @@
     <Compile Include="ProjectUtils.fs" />
     <Compile Include="RayPlatform.fs" />
     <Compile Include="IntVec.fs" />
-    <Compile Include="Graph.fs" />
   </ItemGroup>
 
   <ItemGroup>
