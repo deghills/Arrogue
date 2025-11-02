@@ -10,7 +10,7 @@ type IntVec =
     member this.Y = match this with Vec (_, y) -> y
 
     /// Chebyshev norm
-    static member Norm (Vec (x, y)) = max (abs x) (abs y)
+    static member NormChebyshev (Vec (x, y)) = max (abs x) (abs y)
 
     /// Manhattan norm
     static member NormManhattan (Vec (x, y)) = abs x + abs y

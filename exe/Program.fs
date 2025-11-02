@@ -90,7 +90,7 @@ type State =
                         (getNeighbours currentTile)
                         (Set visitedTiles.Keys)
                     |> Set.remove start
-                let newDist = currentDist + 1 + (*heuristic*)(IntVec.Norm (finish - currentTile))
+                let newDist = currentDist + 1 + (*heuristic*)(IntVec.NormChebyshev (finish - currentTile))
                 let (|HigherCostDistance|_|) i = i > newDist
             
                 aux
@@ -116,12 +116,9 @@ type State =
                 path
         in aux Map.empty (Map.add start (0, None) Map.empty)
 
-type PlayerAction =
-    | TryTile of IntVec
-
 type Msg =
-    | PlayerTurn of PlayerAction
-    | AttackCreature of CreatureID*CreatureID
+    | GenericAction of CreatureID * IntVec
+    | AttackCreature of CreatureID * CreatureID
     | MoveCreatureTo of CreatureID * IntVec
     | MoveCreatureToward of CreatureID * IntVec
     | EnvironmentTurn
@@ -137,17 +134,26 @@ let init =
             [ for j in 0..20 do if j <> 13 then yield Vec (17, j) ]
     }
 let view state =
-    state.Creatures
-    |> Map.toSeq
-    |> Seq.fold
-        (fun acc (_, c) -> Map.add c.Pos c.Token acc)
-        Map.empty
-    |> fun charmap ->
-        Seq.fold
-            (fun acc wallPos -> Map.add wallPos '=' acc)
-            charmap
-            state.Walls
-    |> Map.iter drawChar
+    if state.Creatures.ContainsKey CreatureID.player |> not then
+        Raylib.DrawText
+            ( "the player has died!\npress any key to close window"
+            , 0
+            , 0
+            , 20
+            , Raylib.RAYWHITE
+            )
+    else
+        state.Creatures
+        |> Map.toSeq
+        |> Seq.fold
+            (fun acc (_, c) -> Map.add c.Pos c.Token acc)
+            Map.empty
+        |> fun charmap ->
+            Seq.fold
+                (fun acc wallPos -> Map.add wallPos '=' acc)
+                charmap
+                state.Walls
+        |> Map.iter drawChar
 
 let update state msg : (State*Msg list) =
     let appendMsgs msgs x = (x, msgs)
@@ -156,44 +162,32 @@ let update state msg : (State*Msg list) =
     match msg with
     | GameOver -> Raylib.CloseWindow(); exit 0
 
-    | PlayerTurn (TryTile translation) ->
-        Map.tryFind CreatureID.player state.Creatures
-        |> Option.toResult gameover
-        |> Result.map
-            (fun { Pos = playerPos } -> playerPos + translation)
+    | GenericAction (creatureID, targetPos) ->
+        state.Creatures.TryFind creatureID
+        |> Option.toResult pass
         |> Result.bind
-            (fun nextPlayerPos ->
-                match
-                    Seq.tryFind
-                        (fun (colliderID, { Pos = colliderPos }) ->
-                            colliderPos = nextPlayerPos
-                            && colliderID <> CreatureID.player
-                        )
-                        (Map.toSeq state.Creatures)
-                with
-                | Some (colliderID, _) ->
-                    ( state
-                    , [AttackCreature (CreatureID.player, colliderID); EnvironmentTurn]
-                    ) |> Error
-                | None ->
-                    ( state
-                    , [MoveCreatureTo (CreatureID.player, nextPlayerPos); EnvironmentTurn]
-                    ) |> Ok
+            (fun creature ->
+                let targetIsInRange = IntVec.NormChebyshev (targetPos - creature.Pos) <= 1
+                match Map.tryFindKey (fun _ c -> c.Pos = targetPos) state.Creatures with
+                | Some targetID when targetIsInRange ->
+                    Ok (state, [AttackCreature (creatureID, targetID)])
+                | _ ->
+                    Error (state, [MoveCreatureToward (creatureID, targetPos)])
             )
         |> function Ok result | Error result -> result
 
     | MoveCreatureTo (creatureID, newPos) ->
         Map.change
             creatureID
-            (fun player ->
+            (fun creature ->
                 let spaceIsOccupied =
                     Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
                     //||
                     //Set.contains newPos state.Walls
                 if spaceIsOccupied then
-                    player
+                    creature
                 else
-                    { player with Pos = newPos }
+                    { creature with Pos = newPos }
             |> Option.map
             )
         |> state.TransformCreatures
@@ -201,7 +195,8 @@ let update state msg : (State*Msg list) =
 
     | MoveCreatureToward (creatureID, destination) ->
         match Map.tryFind creatureID state.Creatures with
-        | None -> pass
+        | None ->
+            pass
         | Some creature ->
             match state.FindPath creature.Pos destination with
             | nextPos :: _ -> state, [MoveCreatureTo (creatureID, nextPos)]
@@ -225,23 +220,37 @@ let update state msg : (State*Msg list) =
             gameover
 
         | Some player ->
-            state,
-            List.choose
+            ( state
+            , List.choose
                 (function
                 | CreatureID.player, _ ->
                     None
                 | npcID, _ ->
-                    MoveCreatureToward (npcID, player.Pos) |> Some
+                    GenericAction (npcID, player.Pos) |> Some
                 )
                 (Map.toList state.Creatures)
+            )
 
-let subscriptions (tick: RayPlatform.TickInfo) (s: State) =
-    [ if tick[KeyboardKey.KEY_W].IsPressed then yield IntVec.Vec (0, -1) |> PlayerAction.TryTile |> PlayerTurn
-    ; if tick[KeyboardKey.KEY_A].IsPressed then yield IntVec.Vec (-1, 0) |> PlayerAction.TryTile |> PlayerTurn
-    ; if tick[KeyboardKey.KEY_S].IsPressed then yield IntVec.Vec (0, 1) |> PlayerAction.TryTile |> PlayerTurn
-    ; if tick[KeyboardKey.KEY_D].IsPressed then yield IntVec.Vec (1, 0) |> PlayerAction.TryTile |> PlayerTurn
-    ; if tick[KeyboardKey.KEY_SPACE].IsPressed then yield EnvironmentTurn
-    ]
+let subscriptions (tick: RayPlatform.TickInfo) (state: State) =
+    match state.Creatures.TryFind CreatureID.player with
+    | Some player ->
+        [ if tick[KeyboardKey.KEY_W].IsPressed then
+            yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (0, -1))
+            yield EnvironmentTurn
+        ; if tick[KeyboardKey.KEY_A].IsPressed then
+            yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (-1, 0))
+            yield EnvironmentTurn
+        ; if tick[KeyboardKey.KEY_S].IsPressed then
+            yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (0, 1))
+            yield EnvironmentTurn
+        ; if tick[KeyboardKey.KEY_D].IsPressed then
+            yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (1, 0))
+            yield EnvironmentTurn
+        ; if tick[KeyboardKey.KEY_SPACE].IsPressed then
+            yield EnvironmentTurn
+        ]
+    | None ->
+        [ if tick.PressedKeys.Length > 0 then yield GameOver ]
 
 RayPlatform.run
     { RayPlatform.Config.Default with Fullscreen = false }
