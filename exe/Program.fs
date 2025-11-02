@@ -23,8 +23,11 @@ type Creature =
     }
     static member View { Pos = p; Token = token } = p, token
     static member Attack (c1: Creature) (c2: Creature) : Creature option =
-        { c2 with Stats.Health = c2.Stats.Health - c1.Stats.Strength }
-        |> function dead when dead.Stats.Health < 1 -> None | alive -> Some alive
+        let (|Dead|_|) c = c.Stats.Health < 1
+        match { c2 with Stats.Health = c2.Stats.Health - c1.Stats.Strength } with
+        | Dead -> None
+        | alive -> Some alive
+        //|> function dead when dead.Stats.Health < 1 -> None | alive -> Some alive
 
 type State =
     { Creatures: Map<CreatureID, Creature>
@@ -53,7 +56,8 @@ type State =
                     .Add(p + IntVec.Right)
                     .Add(p + IntVec.Down)
                     .Add(p + IntVec.Down + IntVec.Right)
-                    .Add(p + IntVec.Down + IntVec.Left))
+                    .Add(p + IntVec.Down + IntVec.Left)
+                )
                 occupiedTiles
 
         let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, int*option<IntVec>>) =
@@ -74,7 +78,7 @@ type State =
                     (* technically chebyshev norm says that ||(x, 0)|| = ||(x, x)||, which can lead to unnatural looking pathing
                     ** even though it's still technically an optimal path under the chebyshev norm.
                     ** for multiple optimal paths, tie-breaking with the manhattan distance here
-                    ** will choose the one that tries to intercept the target's x/y axes *)
+                    ** will choose a more natural looking one that tries to axis-align with the target *)
                     |> Seq.sortBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
                     |> Seq.tryHead
                 with
