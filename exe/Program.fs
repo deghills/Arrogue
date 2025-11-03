@@ -177,21 +177,19 @@ let update state msg : (State*Msg list) =
         |> function Ok result | Error result -> result
 
     | MoveCreatureTo (creatureID, newPos) ->
-        Map.change
-            creatureID
-            (fun creature ->
-                let spaceIsOccupied =
-                    Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
-                    //||
-                    //Set.contains newPos state.Walls
-                if spaceIsOccupied then
-                    creature
-                else
-                    { creature with Pos = newPos }
-            |> Option.map
-            )
-        |> state.TransformCreatures
-        |> appendMsgs []
+        let spaceIsOccupied =
+            Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
+            ||
+            Set.contains newPos state.Walls
+
+        if spaceIsOccupied then
+            pass
+        else
+            Map.change
+                creatureID
+                (Option.map (fun creature -> { creature with Pos = newPos } ))
+            |> state.TransformCreatures
+            |> appendMsgs [ if creatureID = CreatureID.player then yield EnvironmentTurn ]
 
     | MoveCreatureToward (creatureID, destination) ->
         match Map.tryFind creatureID state.Creatures with
@@ -209,7 +207,7 @@ let update state msg : (State*Msg list) =
             >> Option.bind
             >> Map.change targetID
             >> state.TransformCreatures
-            >> appendMsgs []
+            >> appendMsgs [ if attackerID = CreatureID.player then yield EnvironmentTurn ]
             )
         |> Option.defaultValue
             pass
@@ -236,21 +234,18 @@ let subscriptions (tick: RayPlatform.TickInfo) (state: State) =
     | Some player ->
         [ if tick[KeyboardKey.KEY_W].IsPressed then
             yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (0, -1))
-            yield EnvironmentTurn
         ; if tick[KeyboardKey.KEY_A].IsPressed then
             yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (-1, 0))
-            yield EnvironmentTurn
         ; if tick[KeyboardKey.KEY_S].IsPressed then
             yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (0, 1))
-            yield EnvironmentTurn
         ; if tick[KeyboardKey.KEY_D].IsPressed then
             yield GenericAction (CreatureID.player, player.Pos + IntVec.Vec (1, 0))
-            yield EnvironmentTurn
+
         ; if tick[KeyboardKey.KEY_SPACE].IsPressed then
             yield EnvironmentTurn
         ]
     | None ->
-        [ if tick.PressedKeys.Length > 0 then yield GameOver ]
+        [ GameOver ]
 
 RayPlatform.run
     { RayPlatform.Config.Default with Fullscreen = false }
