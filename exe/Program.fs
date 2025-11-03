@@ -160,7 +160,10 @@ let update state msg : (State*Msg list) =
     let gameover = state, [GameOver]
     let pass = state, []
     match msg with
-    | GameOver -> Raylib.CloseWindow(); exit 0
+    | GameOver ->
+        Raylib.CloseWindow()
+        printfn "GAME OVER"
+        exit 0;
 
     | GenericAction (creatureID, targetPos) ->
         state.Creatures.TryFind creatureID
