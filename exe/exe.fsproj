@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Creature.fs" />
+    <Compile Include="Model.fs" />
+    <Compile Include="Update.fs" />
+    <Compile Include="Subscription.fs" />
+    <Compile Include="View.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -1,12 +1,9 @@
 ﻿namespace Rogue.Lib
 
 module RayPlatform =
-
-    open System
-    open System.Numerics
     open ZeroElectric.Vinculum
 
-    let (|PrintAndPass|) x = let () = printfn "%A" x in x
+    type KeyboardKey = ZeroElectric.Vinculum.KeyboardKey
 
     [<Struct>]
     type ButtonInfo =
@@ -87,6 +84,8 @@ module RayPlatform =
 
             member _.GetEnumerator (): Collections.IEnumerator = 
                 _enumerator()*)
+
+    let quit = Raylib.CloseWindow
 
     let run
         (cfg: Config)
