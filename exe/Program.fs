@@ -1,9 +1,5 @@
-﻿open ZeroElectric.Vinculum
-
-open Rogue.Lib
-open ProjectUtils
+﻿open Rogue.Lib
 open RayPlatform
-
 open Creature
 open Model
 open Update
@@ -17,7 +13,7 @@ let init =
             ; enum<CreatureID> 0, { Pos = IntVec.Vec (15, 15); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
     ; Walls =
         Set
-            [ for j in 0..20 do if j <> 13 then yield Vec (17, j) ]
+            [ for j in 0..20 do if j <> 13 && j <> 0 then yield Vec (17, j) ]
     }
 
 RayPlatform.run
