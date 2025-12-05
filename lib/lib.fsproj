@@ -7,8 +7,10 @@
 
   <ItemGroup>
     <Compile Include="ProjectUtils.fs" />
-    <Compile Include="IntVec.fs" />
     <Compile Include="RayPlatform.fs" />
+    <Compile Include="IntVec.fs" />
+    <Compile Include="SplitTree.fs" />
+    <Compile Include="BSP.fs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -8,6 +8,8 @@ type IntVec =
     static member (-) (lhs: IntVec, rhs: IntVec) = lhs + -rhs
     member this.X = match this with Vec (x, _) -> x
     member this.Y = match this with Vec (_, y) -> y
+    
+    member _.DivideByInt (Vec (x, y)) i = Vec (x/i, y/i)
 
     /// Chebyshev norm
     static member NormChebyshev (Vec (x, y)) = max (abs x) (abs y)

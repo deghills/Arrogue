@@ -6,10 +6,11 @@ open Creature
 
 open ZeroElectric.Vinculum
 
-let cellSize = 50
+let cellSize = 30
 
 let drawChar (Vec (x, y)) (chr: char) =
-    Raylib.DrawText (string chr, x * cellSize, y * cellSize, cellSize, Raylib.RAYWHITE)
+    let fontSize = (cellSize * 13) / 10
+    Raylib.DrawText (string chr, x * cellSize, y * cellSize, fontSize, Raylib.RAYWHITE)
 
 let view state =
     if state.Creatures.ContainsKey CreatureID.player |> not then
