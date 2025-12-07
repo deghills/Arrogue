@@ -39,13 +39,7 @@ let drawPart (bounds: BSP.Bounds.t) =
         , Raylib.RED
         )
 
-let partitions =
-    Bounds.t (0, 64, 0, 32)
-    |> SplitTree.Leaf
-    |> BSP.splitRandom 4 5
-    |> SplitTree.map
-        (fun bounds -> Bounds.t (bounds.MinX + 1, bounds.MaxX - 1, bounds.MinY + 1, bounds.MaxY - 1))
-    |> buildRandomPaths
+let partitions = BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 5 4
 
 Raylib.InitWindow(1920, 1080, "caucuses and bollocks")
 

@@ -15,6 +15,8 @@ module Bounds =
         member _.MinY = min minY maxY
         member _.MaxX = max minX maxX
         member _.MaxY = max minY maxY
+        member this.Width = this.MaxX - this.MinX
+        member this.Height = this.MaxY - this.MinY
 
     let split bisector (bounds: t) =
         let (|OutOfBounds|_|) = function
@@ -49,11 +51,33 @@ module Bounds =
         , rand.Next(bounds.MinY, bounds.MaxY)
         ) |> Vec
 
+    let smallestBindingPoints (points: IntVec list) =
+        let minX = points |> Seq.map _.X |> Seq.min
+        let minY = points |> Seq.map _.Y |> Seq.min
+        let maxX = points |> Seq.map _.X |> Seq.max
+        let maxY = points |> Seq.map _.Y |> Seq.max
+
+        t (minX, maxX + 1, minY, maxY + 1)
+
+let connect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
+    let leftAnchor, rightAnchor =
+        ( leftRoom |> Seq.randomChoice |> Bounds.randomPointWithin
+        , rightRoom |> Seq.randomChoice |> Bounds.randomPointWithin
+        )
+
+    let intersect = Vec (leftAnchor.X, rightAnchor.Y)
+
+    [ yield! leftRoom
+    ; yield! rightRoom
+    ; yield Bounds.smallestBindingPoints [leftAnchor; intersect]
+    ; yield Bounds.smallestBindingPoints [rightAnchor; intersect]
+    ]
+
 let split n tree =
     let rec aux remaining t =
         match remaining, t with
-        | Positive, SplitTree.Branch (l, bounds, r) ->
-            SplitTree.Branch (aux remaining l, bounds, aux remaining r)
+        | Positive, SplitTree.Branch (l, bisector, r) ->
+            SplitTree.Branch (aux remaining l, bisector, aux remaining r)
 
         | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
             let width, height = bounds.MaxX - bounds.MinX, bounds.MaxY - bounds.MinY
@@ -67,11 +91,11 @@ let split n tree =
         | _ -> t
     in aux n tree
 
-let splitRandom n minSize tree =
+let splitRandom minSize n tree =
     let rec aux remaining t =
         match remaining, t with
-        | Positive, SplitTree.Branch (l, bounds, r) ->
-            SplitTree.Branch (aux remaining l, bounds, aux remaining r)
+        | Positive, SplitTree.Branch (l, bisector, r) ->
+            SplitTree.Branch (aux remaining l, bisector, aux remaining r)
 
         | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
             let rand = Random()
@@ -92,20 +116,24 @@ let splitRandom n minSize tree =
         | _ -> t
     in aux n tree
 
-let connect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
-    let leftAnchor, rightAnchor =
-        leftRoom |> Seq.randomChoice |> Bounds.randomPointWithin,
-        rightRoom |> Seq.randomChoice |> Bounds.randomPointWithin
+let shrink n (bounds: Bounds.t) =
+    Bounds.t (bounds.MinX + n, bounds.MaxX - n, bounds.MinY + n, bounds.MaxY - n)
 
-    let getPathBounds (Vec (leftX, leftY)) (Vec (rightX, rightY)) =
-        [ Bounds.t (leftX, rightX, leftY, leftY + 1)
-        ; Bounds.t (rightX - 1, rightX, leftY, rightY)
-        ]
+let randomSubroom minSize (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
+    let makeBoundsSmaller (bounds: Bounds.t) =
+        let rand = Random()
+        let width' = rand.Next(minSize, bounds.Width)
+        let height' = rand.Next(minSize, bounds.Height)
 
-    [ yield! leftRoom
-    ; yield! rightRoom
-    ; yield! getPathBounds leftAnchor rightAnchor
-    ]
+        let minX = rand.Next(bounds.MinX, bounds.MaxX - width')
+        let minY = rand.Next(bounds.MinY, bounds.MaxY -  height')
+        let maxX = minX + width'
+        let maxY = minY + height'
+
+        Bounds.t (minX, maxX, minY, maxY)
+    
+    bsp
+    |> SplitTree.map makeBoundsSmaller
 
 let buildRandomPaths (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
     bsp
@@ -116,18 +144,36 @@ let toWalls (bsp: seq<Bounds.t>) =
     let isVacant vec =
         Seq.forall (not << Bounds.containsPoint vec) bsp
 
-    let (Vec (mostMinX, mostMinY)) =
+    let mostMinX =
         bsp
-        |> Seq.map (fun bounds -> Vec (bounds.MinX, bounds.MinY))
+        |> Seq.map _.MinX
         |> Seq.min
-        |> fun v -> v - Vec (1, 1)
-
-    let (Vec (mostMaxX, mostMaxY)) =
+    
+    let mostMaxX =
         bsp
-        |> Seq.map (fun bounds -> Vec (bounds.MaxX, bounds.MaxY))
+        |> Seq.map _.MaxX
         |> Seq.max
 
-    [ for i in mostMinX .. mostMaxX do
-        for j in mostMinY .. mostMaxY do
+    let mostMinY =
+        bsp
+        |> Seq.map _.MinY
+        |> Seq.min
+
+    let mostMaxY =
+        bsp
+        |> Seq.map _.MaxY
+        |> Seq.max
+
+    [ for i in mostMinX - 1 .. mostMaxX do
+        for j in mostMinY - 1.. mostMaxY do
             let tile = Vec (i, j) in if tile |> isVacant then yield tile
     ]
+
+let genRandomMap startingBounds minRoomSize divisions =
+    let minRoomSize = minRoomSize + 2
+    startingBounds
+    |> SplitTree.Leaf
+    |> splitRandom minRoomSize divisions
+    |> randomSubroom minRoomSize
+    |> SplitTree.map (shrink 1)
+    |> buildRandomPaths
