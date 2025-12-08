@@ -45,6 +45,13 @@ module Bounds =
         bounds.MinX <= x && x < bounds.MaxX &&
         bounds.MinY <= y && y < bounds.MaxY
 
+    let containedPoints (bounds: t) =
+        seq
+            { for i in bounds.MinX .. bounds.MaxX - 1 do
+                for j in bounds.MinY .. bounds.MaxY - 1 do
+                    yield Vec(i, j)
+            }
+
     let randomPointWithin (bounds: t) =
         let rand = Random()
         ( rand.Next(bounds.MinX, bounds.MaxX)
@@ -139,35 +146,6 @@ let buildRandomPaths (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
     bsp
     |> SplitTree.map List.singleton
     |> SplitTree.interpret (konst connect)
-
-let toWalls (bsp: seq<Bounds.t>) =
-    let isVacant vec =
-        Seq.forall (not << Bounds.containsPoint vec) bsp
-
-    let mostMinX =
-        bsp
-        |> Seq.map _.MinX
-        |> Seq.min
-    
-    let mostMaxX =
-        bsp
-        |> Seq.map _.MaxX
-        |> Seq.max
-
-    let mostMinY =
-        bsp
-        |> Seq.map _.MinY
-        |> Seq.min
-
-    let mostMaxY =
-        bsp
-        |> Seq.map _.MaxY
-        |> Seq.max
-
-    [ for i in mostMinX - 1 .. mostMaxX do
-        for j in mostMinY - 1.. mostMaxY do
-            let tile = Vec (i, j) in if tile |> isVacant then yield tile
-    ]
 
 let genRandomMap startingBounds minRoomSize divisions =
     let minRoomSize = minRoomSize + 2

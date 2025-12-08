@@ -5,23 +5,26 @@ open Creature
 
 type Model =
     { Creatures: Map<CreatureID, Creature>
-    ; Walls: Set<IntVec>
+    ; Map: Set<IntVec>
     }
 
     member this.TransformCreatures f = { this with Creatures = f this.Creatures }
 
     ///Dijkstra/A* (Euclidean norm heuristic)
     member this.FindPath (start: IntVec) (finish: IntVec) =
-        let occupiedTiles =
-            Map.toSeq this.Creatures
+        let freeTiles =
+            this.Map
+            |> Set
+            //|> Set.difference (Map.toSeq this.Creatures |> Seq.map (function _, creature -> creature.Pos) |> Set)
+            (*Map.toSeq this.Creatures
             |> Seq.map (snd >> _.Pos)
             |> Set
-            |> Set.union this.Walls
+            |> Set.union this.Map
             |> Set.remove start
-            |> Set.remove finish
+            |> Set.remove finish*)
             
         let getNeighbours (p: IntVec) =
-            Set.difference
+            Set.intersect
                 (Set.empty
                     .Add(p + IntVec.Up)
                     .Add(p + IntVec.Up + IntVec.Right)
@@ -32,7 +35,7 @@ type Model =
                     .Add(p + IntVec.Down + IntVec.Right)
                     .Add(p + IntVec.Down + IntVec.Left)
                 )
-                occupiedTiles
+                freeTiles
 
         let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, int*option<IntVec>>) =
             let rec checkPath acc current =

@@ -41,7 +41,7 @@ let update state msg : (Model*Msg list) =
         let spaceIsOccupied =
             Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
             ||
-            Set.contains newPos state.Walls
+            not (Set.contains newPos state.Map)
 
         if spaceIsOccupied then
             pass
