@@ -1,7 +1,6 @@
 ﻿open Creature
 
 open Model
-open Update
 open View
 open Subscription
 
@@ -11,8 +10,6 @@ open BSP
 
 let theMap = BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4 |> Seq.collect Bounds.containedPoints |> Set
 let randomSpawnLocation() = Seq.randomChoice theMap
-
-
 
 let init =
     { Creatures =
@@ -28,3 +25,8 @@ RayPlatform.run
     init
     view
     subscriptions
+
+(* TODO:
+- RNG monad to replace System.Random with pure code
+- 
+*)

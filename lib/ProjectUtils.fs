@@ -7,7 +7,7 @@ module ProjectUtils =
     let flip f a b = f b a
     let konst x _ = x
 
-    let inline (|Positive|Negative|Zero|) x =
+    let (|Positive|Negative|Zero|) x =
         if x = 0 then Zero
         elif x > 0 then Positive
         else Negative
