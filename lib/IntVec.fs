@@ -4,6 +4,8 @@
 type IntVec =
     | Vec of int*int
     static member (+) (Vec (x, y), Vec (i, j)) = Vec (x + i, y + j)
+    static member (*) (scalar, (Vec (x, y))) = Vec (scalar * x, scalar * y)
+    static member (*) (vec: IntVec, scalar: int) = scalar * vec
     static member (~-) (Vec (x, y)) = Vec (-x, -y)
     static member (-) (lhs: IntVec, rhs: IntVec) = lhs + -rhs
     member this.X = match this with Vec (x, _) -> x
@@ -19,9 +21,8 @@ type IntVec =
 
     static member NormEuclidean (Vec (x, y)) =
         let sqr f = f * f
-        System.MathF.Sqrt
-            ( sqr (float32 x)
-            + sqr (float32 y) )
+        sqr (float32 x) + sqr (float32 y)
+        |> System.MathF.Sqrt
 
     // Taxi-cab norm
     //static member Norm = function Vec (x, y) -> x + y

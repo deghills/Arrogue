@@ -1,16 +1,18 @@
-﻿open System
-open Rogue.Lib
-open ProjectUtils
-open RayPlatform
-open Creature
+﻿open Creature
+
 open Model
 open Update
 open View
 open Subscription
+
+open Rogue.Lib
+open RayPlatform
 open BSP
 
 let theMap = BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4 |> Seq.collect Bounds.containedPoints |> Set
 let randomSpawnLocation() = Seq.randomChoice theMap
+
+
 
 let init =
     { Creatures =
@@ -25,5 +27,5 @@ RayPlatform.run
     { RayPlatform.Config.Default with Fullscreen = false }
     init
     view
-    update
     subscriptions
+    update

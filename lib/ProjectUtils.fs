@@ -26,6 +26,10 @@ module ProjectUtils =
         let Cons (x, xs) = seq { yield x; yield! xs }
         let Nil = Seq.empty
 
+        let tryMinBy projection source =
+            try Seq.minBy projection source |> Some
+            with :? ArgumentException -> None
+
     module String =
         let singleton = string: char -> string
 

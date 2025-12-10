@@ -57,42 +57,36 @@ module RayPlatform =
             ; Fullscreen = true
             }
 
-    (*type MsgQueue<'msg>() =
-        let queue = Collections.Concurrent.ConcurrentQueue<'msg>()
-        let mutable current = None
-        let _enumerator() =
-            { new Collections.Generic.IEnumerator<'msg> with
-                member _.Current: 'msg = match current with Some msg -> msg | None -> failwith "AHHH"
-                member this.Current: obj = this.Current
-                member _.MoveNext () =
-                    match queue.TryDequeue() with
-                    | false, _ -> false
-                    | true, msg -> let () = current <- Some msg in true
-                member _.Reset () = current <- None
-                member _.Dispose() = ()
-            }
+    module Colours =
+        let rayWhite = Raylib.RAYWHITE
 
-        member _.Dispatch = queue.Enqueue
-        member _.Pop(): 'msg option =
-            match queue.TryDequeue() with
-            | true, msg -> Some msg
-            | false, _ -> None
-    
-        interface seq<'msg> with
-            member _.GetEnumerator (): Collections.Generic.IEnumerator<'msg> = 
-                _enumerator()
+    [<RequireQualifiedAccess>]
+    module View =
+        [<Interface>]
+        type IViewable<'msg> = abstract member View: Unit -> List<'msg>
 
-            member _.GetEnumerator (): Collections.IEnumerator = 
-                _enumerator()*)
+        let compose (viewable1: IViewable<'msg>) (viewable2: IViewable<'msg>) =
+            { new IViewable<'msg> with member _.View() = viewable1.View() @ viewable2.View() }
 
-    let quit = Raylib.CloseWindow
+        let text (msg: string) (pos: IntVec) (fontSize: int) (colour: Color) =
+            { new IViewable<'msg> with
+                member _.View() = let () = Raylib.DrawText(msg, pos.X, pos.Y, fontSize, colour) in [] }
+
+        let zero = { new IViewable<'msg> with member _.View() = [] }
+
+    [<RequireQualifiedAccess>]
+    module Subscription =
+        [<Interface>]
+        type ISubscription<'msg> = abstract member OnTick: TickInfo -> List<'msg>
+
+    let quit() = Raylib.CloseWindow()
 
     let run
         (cfg: Config)
         (init: 'model)
-        (view: 'model -> unit)
+        (view: 'model -> View.IViewable<'msg>)
+        (subscription: 'model -> Subscription.ISubscription<'msg>)
         (update: 'model -> 'msg -> ('model * 'msg list))
-        (onTick: TickInfo -> 'model -> 'msg list)
     
         = do
         Raylib.InitWindow (fst cfg.Resolution, snd cfg.Resolution, "a game to be played")
@@ -101,28 +95,29 @@ module RayPlatform =
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
 
-        let rec processMsgs (msgs: 'msg list) (state: 'model) =
+        let rec processMsgs msgs state =
             match msgs with
-            | nextMsg :: remainingMsgs ->
+            | nextMsg :: msgQueue ->
                 let state', intermediateMsgs = update state nextMsg
-                processMsgs (intermediateMsgs @ remainingMsgs) state'
-            | [] ->
-                state
+                processMsgs (intermediateMsgs @ msgQueue) state'
+            | [] -> state
     
-        let rec tick model (msgQueue: 'msg list) =
+        let rec tick state =
             match Raylib.WindowShouldClose() with
-            | true ->
-                Raylib.CloseWindow()
+            | true -> Raylib.CloseWindow(); exit 0
+
             | false ->
                 Raylib.BeginDrawing()
                 Raylib.ClearBackground cfg.BackgroundColour
 
-                view model
-            
-                let model' = processMsgs msgQueue model
-                let msgQueue' = onTick (TickInfo()) model
+                let state' =
+                    state
+                    |> processMsgs (view state |> _.View())
+                    |> processMsgs (subscription state |> _.OnTick(TickInfo ()))
 
                 Raylib.EndDrawing()
 
-                tick model' msgQueue'
-        in tick init []
+                tick state'
+
+
+        in tick init

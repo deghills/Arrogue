@@ -1,6 +1,7 @@
 ﻿module Model
 
 open Rogue.Lib
+open ProjectUtils
 open Creature
 
 type Model =
@@ -12,28 +13,19 @@ type Model =
 
     ///Dijkstra/A* (Euclidean norm heuristic)
     member this.FindPath (start: IntVec) (finish: IntVec) =
-        let freeTiles =
-            this.Map
-            |> Set
-            //|> Set.difference (Map.toSeq this.Creatures |> Seq.map (function _, creature -> creature.Pos) |> Set)
-            (*Map.toSeq this.Creatures
-            |> Seq.map (snd >> _.Pos)
-            |> Set
-            |> Set.union this.Map
-            |> Set.remove start
-            |> Set.remove finish*)
+        let freeTiles = Set this.Map
             
         let getNeighbours (p: IntVec) =
             Set.intersect
-                (Set.empty
-                    .Add(p + IntVec.Up)
-                    .Add(p + IntVec.Up + IntVec.Right)
-                    .Add(p + IntVec.Up + IntVec.Left)
-                    .Add(p + IntVec.Left)
-                    .Add(p + IntVec.Right)
-                    .Add(p + IntVec.Down)
-                    .Add(p + IntVec.Down + IntVec.Right)
-                    .Add(p + IntVec.Down + IntVec.Left)
+                ( Set.empty
+                |> Set.add(p + IntVec.Up)
+                |> Set.add(p + IntVec.Up + IntVec.Left)
+                |> Set.add(p + IntVec.Up + IntVec.Right)
+                |> Set.add(p + IntVec.Left)
+                |> Set.add(p + IntVec.Right)
+                |> Set.add(p + IntVec.Down)
+                |> Set.add(p + IntVec.Down + IntVec.Left)
+                |> Set.add(p + IntVec.Down + IntVec.Right)
                 )
                 freeTiles
 
@@ -55,9 +47,8 @@ type Model =
                     (* technically chebyshev norm says that ||(x, 0)|| = ||(x, x)||, which can lead to unnatural looking pathing
                     ** even though it's still technically an optimal path under the chebyshev norm.
                     ** for multiple optimal paths, tie-breaking with the manhattan distance here
-                    ** will choose a more natural looking one that tries to axis-align with the target *)
-                    |> Seq.sortBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
-                    |> Seq.tryHead
+                    ** will choose a more natural looking one *)
+                    |> Seq.tryMinBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
                 with
                 | None -> [] //queue is empty, no path exists
                 | Some (currentTile, (currentDist, previousTileOpt)) ->
