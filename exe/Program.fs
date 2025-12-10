@@ -28,4 +28,3 @@ RayPlatform.run
     init
     view
     subscriptions
-    update

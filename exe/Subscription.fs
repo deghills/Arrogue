@@ -2,12 +2,13 @@
 
 open Rogue.Lib
 open RayPlatform
+open Msg
 open Update
 open Creature
 open Model
 
 let subscriptions state =
-    { new RayPlatform.Subscription.ISubscription<Msg> with
+    { new RayPlatform.Subscription.ISubscription<Msg, Model> with
         member _.OnTick tick =
             match state.Creatures.TryFind CreatureID.player with
             | Some player ->
@@ -24,5 +25,5 @@ let subscriptions state =
                     yield EnvironmentTurn
                 ]
             | None ->
-                [ GameOver ]
+                [ Quit ]
     }

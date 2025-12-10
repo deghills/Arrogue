@@ -60,10 +60,29 @@ module RayPlatform =
     module Colours =
         let rayWhite = Raylib.RAYWHITE
 
-    [<RequireQualifiedAccess>]
+    module Msg =
+        [<Interface>] type IMsg<'model> = abstract member UpdateModel: 'model -> ('model * List<IMsg<'model>>)
+
+        type PlatformMsgs<'model> =
+            | Quit
+            | ChangeWindowSize of int*int
+            
+            interface IMsg<'model> with
+                member this.UpdateModel model =
+                    match this with
+                    | Quit ->
+                        let () =
+                            Raylib.CloseWindow()
+                            printfn "GAME OVER"
+                            exit 0
+                        model, []
+
+                    | ChangeWindowSize (resX, resY) ->
+                        let () = Raylib.SetWindowSize(resX, resY)
+                        model, []
+
     module View =
-        [<Interface>]
-        type IViewable<'msg> = abstract member View: Unit -> List<'msg>
+        [<Interface>] type IViewable<'msg> = abstract member View: Unit -> List<Msg.IMsg<'model>>
 
         let compose (viewable1: IViewable<'msg>) (viewable2: IViewable<'msg>) =
             { new IViewable<'msg> with member _.View() = viewable1.View() @ viewable2.View() }
@@ -74,19 +93,14 @@ module RayPlatform =
 
         let zero = { new IViewable<'msg> with member _.View() = [] }
 
-    [<RequireQualifiedAccess>]
     module Subscription =
-        [<Interface>]
-        type ISubscription<'msg> = abstract member OnTick: TickInfo -> List<'msg>
-
-    let quit() = Raylib.CloseWindow()
+        [<Interface>] type ISubscription<'msg, 'model> = abstract member OnTick: TickInfo -> List<Msg.IMsg<'model>>
 
     let run
         (cfg: Config)
         (init: 'model)
         (view: 'model -> View.IViewable<'msg>)
-        (subscription: 'model -> Subscription.ISubscription<'msg>)
-        (update: 'model -> 'msg -> ('model * 'msg list))
+        (subscription: 'model -> Subscription.ISubscription<'msg, 'model>)
     
         = do
         Raylib.InitWindow (fst cfg.Resolution, snd cfg.Resolution, "a game to be played")
@@ -95,10 +109,10 @@ module RayPlatform =
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
 
-        let rec processMsgs msgs state =
+        let rec processMsgs (msgs: List<Msg.IMsg<'model>>) (state: 'model)=
             match msgs with
             | nextMsg :: msgQueue ->
-                let state', intermediateMsgs = update state nextMsg
+                let state', intermediateMsgs = nextMsg.UpdateModel state
                 processMsgs (intermediateMsgs @ msgQueue) state'
             | [] -> state
     
@@ -118,6 +132,5 @@ module RayPlatform =
                 Raylib.EndDrawing()
 
                 tick state'
-
 
         in tick init
