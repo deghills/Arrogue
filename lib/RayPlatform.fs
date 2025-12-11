@@ -24,7 +24,7 @@ module RayPlatform =
         member this.IsReleased = this.getReleased()
         member this.IsDown = this.getDown()
 
-    type TickInfo() =
+    type TickInfo internal () =
         let pressedKeys =
             let rec aux acc =
                 match Raylib.GetKeyPressed() with
@@ -82,16 +82,16 @@ module RayPlatform =
                         model, []
 
     module View =
-        [<Interface>] type IViewable<'msg> = abstract member View: Unit -> List<Msg.IMsg<'model>>
+        [<Interface>] type IViewable<'msg, 'model> = abstract member View: Unit -> List<Msg.IMsg<'model>>
 
-        let compose (viewable1: IViewable<'msg>) (viewable2: IViewable<'msg>) =
-            { new IViewable<'msg> with member _.View() = viewable1.View() @ viewable2.View() }
+        let compose (viewable1: IViewable<'msg, 'model>) (viewable2: IViewable<'msg, 'model>) =
+            { new IViewable<'msg, 'model> with member _.View() = viewable1.View() @ viewable2.View() }
 
         let text (msg: string) (pos: IntVec) (fontSize: int) (colour: Color) =
-            { new IViewable<'msg> with
+            { new IViewable<'msg, 'model> with
                 member _.View() = let () = Raylib.DrawText(msg, pos.X, pos.Y, fontSize, colour) in [] }
 
-        let zero = { new IViewable<'msg> with member _.View() = [] }
+        let zero = { new IViewable<'msg, 'model> with member _.View() = [] }
 
     module Subscription =
         [<Interface>] type ISubscription<'msg, 'model> = abstract member OnTick: TickInfo -> List<Msg.IMsg<'model>>
@@ -99,7 +99,7 @@ module RayPlatform =
     let run
         (cfg: Config)
         (init: 'model)
-        (view: 'model -> View.IViewable<'msg>)
+        (view: 'model -> View.IViewable<'msg, 'model>)
         (subscription: 'model -> Subscription.ISubscription<'msg, 'model>)
     
         = do

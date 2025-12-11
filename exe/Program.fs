@@ -27,6 +27,6 @@ RayPlatform.run
     subscriptions
 
 (* TODO:
-- RNG monad to replace System.Random with pure code
+- replace all System.Random instances with new RandomPure module
 - 
 *)
