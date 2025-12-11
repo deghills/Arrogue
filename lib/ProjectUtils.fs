@@ -20,7 +20,7 @@ module ProjectUtils =
             { get = leftGet >> rightGet; update = rightSet >> leftSet }
 
     module RandomPure =
-        let inline getNext { Lens.get = get; Lens.update = update } structure =
+        let getNext { Lens.get = get; Lens.update = update } structure =
             let seed' =
                 //Xorshift
                 get structure
