@@ -8,27 +8,23 @@ module ProjectUtils =
     let s unary binary x = binary x (unary x)
     let s' unaryLeft unaryRight binary x = binary (unaryLeft x) (unaryRight x)
 
+    let betterModulo i m =
+        ((i % m) + m) % m
+
     let (|Positive|Negative|Zero|) x =
         if x = 0 then Zero
         elif x > 0 then Positive
         else Negative
+
+    type Random with
+        member this.CoinFlip() =
+            this.Next() > 0
 
     [<RequireQualifiedAccess>]
     module Lens =
         type t<'structure, 'focus> = { get: 'structure -> 'focus; update: ('focus -> 'focus) -> 'structure -> 'structure }
         let compose { get = leftGet; update = leftSet } { get = rightGet; update = rightSet } =
             { get = leftGet >> rightGet; update = rightSet >> leftSet }
-
-    module RandomPure =
-        let getNext { Lens.get = get; Lens.update = update } structure =
-            let seed' =
-                //Xorshift
-                get structure
-                |> s' id (flip (<<<) 13) (^^^)
-                |> s' id (flip (>>>) 17) (^^^)
-                |> s' id (flip (<<<) 5) (^^^)
-            let structure' = update (konst seed') structure
-            structure', seed'
 
     module Seq =
         let (|Cons|Nil|) xs =
@@ -42,6 +38,12 @@ module ProjectUtils =
         let tryMinBy projection source =
             try Seq.minBy projection source |> Some
             with :? ArgumentException -> None
+
+        /// input is modulo the size of the sequence
+        let itemModulo i (xs: seq<'x>) =
+            Seq.item
+                (betterModulo i (Seq.length xs))
+                xs
 
     module String =
         let singleton = string: char -> string

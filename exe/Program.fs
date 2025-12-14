@@ -8,7 +8,11 @@ open Rogue.Lib
 open RayPlatform
 open BSP
 
-let theMap = BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4 |> Seq.collect Bounds.containedPoints |> Set
+let theMap =
+    BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4 69
+    |> Seq.collect Bounds.containedPoints
+    |> Set
+
 let randomSpawnLocation() = Seq.randomChoice theMap
 
 let init =
@@ -25,8 +29,3 @@ RayPlatform.run
     init
     view
     subscriptions
-
-(* TODO:
-- replace all System.Random instances with new RandomPure module
-- 
-*)

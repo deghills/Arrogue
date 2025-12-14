@@ -54,8 +54,7 @@ module BSP =
                         yield Vec(i, j)
                 }
 
-        let randomPointWithin (bounds: t) =
-            let rand = Random()
+        let randomPointWithin (rand: Random) (bounds: t) =
             ( rand.Next(bounds.MinX, bounds.MaxX)
             , rand.Next(bounds.MinY, bounds.MaxY)
             ) |> Vec
@@ -68,10 +67,11 @@ module BSP =
 
             t (minX, maxX + 1, minY, maxY + 1)
 
-    let connect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
+    let connect (rand: Random) (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
+        
         let leftAnchor, rightAnchor =
-            ( leftRoom |> Seq.randomChoice |> Bounds.randomPointWithin
-            , rightRoom |> Seq.randomChoice |> Bounds.randomPointWithin
+            ( leftRoom |> Seq.item (rand.Next(0, leftRoom.Length)) |> Bounds.randomPointWithin rand
+            , rightRoom |> Seq.item (rand.Next(0, rightRoom.Length)) |> Bounds.randomPointWithin rand
             )
 
         let intersect = Vec (leftAnchor.X, rightAnchor.Y)
@@ -100,14 +100,13 @@ module BSP =
             | _ -> t
         in aux n tree
 
-    let splitRandom minSize n tree =
+    let splitRandom (rand: Random) minSize n tree =
         let rec aux remaining t =
             match remaining, t with
             | Positive, SplitTree.Branch (l, bisector, r) ->
                 SplitTree.Branch (aux remaining l, bisector, aux remaining r)
 
             | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
-                let rand = Random()
                 try
                     if rand.CoinFlip() then
                         Bounds.split
@@ -128,9 +127,8 @@ module BSP =
     let shrink n (bounds: Bounds.t) =
         Bounds.t (bounds.MinX + n, bounds.MaxX - n, bounds.MinY + n, bounds.MaxY - n)
 
-    let randomSubroom minSize (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
+    let randomSubroom (rand: Random) minSize (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
         let makeBoundsSmaller (bounds: Bounds.t) =
-            let rand = Random()
             let width' = rand.Next(minSize, bounds.Width)
             let height' = rand.Next(minSize, bounds.Height)
 
@@ -144,16 +142,18 @@ module BSP =
         bsp
         |> SplitTree.map makeBoundsSmaller
 
-    let buildRandomPaths (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
+    let buildRandomPaths (rand: Random) (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
         bsp
         |> SplitTree.map List.singleton
-        |> SplitTree.interpret (konst connect)
+        |> SplitTree.interpret (fun _ -> connect rand)
 
-    let genRandomMap startingBounds minRoomSize divisions =
+    let genRandomMap startingBounds minRoomSize divisions seed =
+        let rand = Random seed
+
         let minRoomSize = minRoomSize + 2
         startingBounds
         |> SplitTree.Leaf
-        |> splitRandom minRoomSize divisions
-        |> randomSubroom minRoomSize
+        |> splitRandom rand minRoomSize divisions
+        |> randomSubroom rand minRoomSize
         |> SplitTree.map (shrink 1)
-        |> buildRandomPaths
+        |> buildRandomPaths rand
