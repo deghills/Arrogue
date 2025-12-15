@@ -26,6 +26,64 @@ module ProjectUtils =
         let compose { get = leftGet; update = leftSet } { get = rightGet; update = rightSet } =
             { get = leftGet >> rightGet; update = rightSet >> leftSet }
 
+    module State =
+        type t<'s, 'a> = { RunState : 's -> 's * 'a }
+
+        let return_ x = { RunState = fun s -> s, x }
+
+        let map mapping { RunState = runState } =
+            { RunState = runState >> function s, x -> s, mapping x }
+
+        let bind (binding: 'a -> t<'s, 'b>) { RunState = runState : 's -> 's * 'a} =
+            { RunState =
+                runState
+                >> function s, x -> (binding x).RunState s
+            }
+
+        let get = { RunState = fun s -> s, s }
+        let put x = { RunState = fun _ -> x, () }
+        
+        type StateBuilder() =
+            member _.Bind(x, f) = bind f x
+            member _.Return x = return_ x
+            member _.ReturnFrom m = bind return_ m
+            member _.Zero() = return_ ()
+
+        let state = StateBuilder()
+
+    module RandomPure =
+        type t = { Seed : int }
+
+        let xorShift i =
+            i
+            |> s' id (flip (<<<) 13) (^^^)
+            |> s' id (flip (>>>) 17) (^^^)
+            |> s' id (flip (<<<) 5) (^^^)
+
+        let next =
+            { State.RunState =
+                fun { Seed = oldSeed } ->
+                    { Seed = xorShift oldSeed }, oldSeed
+            }
+
+        /// lower bound inclusive, upper bound exclusive
+        let nextInRange minBounds maxBounds =
+            if minBounds > maxBounds then raise (ArgumentOutOfRangeException($"{minBounds} {maxBounds}"))
+
+            if minBounds = maxBounds
+            then State.return_ minBounds
+            else
+                State.map
+                    (fun seed ->
+                        betterModulo
+                            seed
+                            (maxBounds - minBounds)
+                        + minBounds
+                    )
+                    next
+
+        let nextCoinFlip = State.map ((<) 0) next
+
     module Seq =
         let (|Cons|Nil|) xs =
             match Seq.tryHead xs with

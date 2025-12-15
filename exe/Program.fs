@@ -5,11 +5,14 @@ open View
 open Subscription
 
 open Rogue.Lib
+open ProjectUtils
 open RayPlatform
 open BSP
 
 let theMap =
-    BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4 69
+    BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4
+    |> _.RunState({ RandomPure.Seed = 69 })
+    |> snd
     |> Seq.collect Bounds.containedPoints
     |> Set
 
@@ -29,3 +32,5 @@ RayPlatform.run
     init
     view
     subscriptions
+
+10 % 0
