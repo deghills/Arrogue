@@ -23,8 +23,11 @@ module ProjectUtils =
     [<RequireQualifiedAccess>]
     module Lens =
         type t<'structure, 'focus> = { get: 'structure -> 'focus; update: ('focus -> 'focus) -> 'structure -> 'structure }
+
         let compose { get = leftGet; update = leftSet } { get = rightGet; update = rightSet } =
             { get = leftGet >> rightGet; update = rightSet >> leftSet }
+
+        let identity = { get = id; update = id }
 
     module State =
         type t<'s, 'a> = { RunState : 's -> 's * 'a }
@@ -42,6 +45,7 @@ module ProjectUtils =
 
         let get = { RunState = fun s -> s, s }
         let put x = { RunState = fun _ -> x, () }
+        let modify f = { RunState = fun s -> f s, () }
         
         type StateBuilder() =
             member _.Bind(x, f) = bind f x
@@ -50,39 +54,6 @@ module ProjectUtils =
             member _.Zero() = return_ ()
 
         let state = StateBuilder()
-
-    module RandomPure =
-        type t = { Seed : int }
-
-        let xorShift i =
-            i
-            |> s' id (flip (<<<) 13) (^^^)
-            |> s' id (flip (>>>) 17) (^^^)
-            |> s' id (flip (<<<) 5) (^^^)
-
-        let next =
-            { State.RunState =
-                fun { Seed = oldSeed } ->
-                    { Seed = xorShift oldSeed }, oldSeed
-            }
-
-        /// lower bound inclusive, upper bound exclusive
-        let nextInRange minBounds maxBounds =
-            if minBounds > maxBounds then raise (ArgumentOutOfRangeException($"{minBounds} {maxBounds}"))
-
-            if minBounds = maxBounds
-            then State.return_ minBounds
-            else
-                State.map
-                    (fun seed ->
-                        betterModulo
-                            seed
-                            (maxBounds - minBounds)
-                        + minBounds
-                    )
-                    next
-
-        let nextCoinFlip = State.map ((<) 0) next
 
     module Seq =
         let (|Cons|Nil|) xs =

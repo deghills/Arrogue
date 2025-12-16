@@ -5,9 +5,11 @@ open RayPlatform
 open Msg
 open Update
 open Creature
+
 open Model
 
-let subscriptions state =
+
+let subscriptions (state: Model) =
     { new RayPlatform.Subscription.ISubscription<Msg, Model> with
         member _.OnTick tick =
             match state.Creatures.TryFind CreatureID.player with

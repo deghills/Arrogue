@@ -9,28 +9,14 @@ open ProjectUtils
 open RayPlatform
 open BSP
 
-let theMap =
-    BSP.genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4
-    |> _.RunState({ RandomPure.Seed = 69 })
-    |> snd
-    |> Seq.collect Bounds.containedPoints
-    |> Set
-
-let randomSpawnLocation() = Seq.randomChoice theMap
-
 let init =
-    { Creatures =
-        Map
-            [ CreatureID.player, { Pos = randomSpawnLocation(); Token = '@'; Stats = { Health = 100; Strength = 10 } }
-            ; enum<CreatureID> 0, { Pos = randomSpawnLocation(); Token = 'g'; Stats = { Health = 100; Strength = 11 } } ]
-    ; Map =
-        theMap
-    }
+    Model.empty
+    |> Model.genNewMap
+    |> fun m ->
+        Model.creaturesLens.update (Map.add CreatureID.player (Creature.spawnDummy (Seq.randomChoice m.Map))) m
 
 RayPlatform.run
     { RayPlatform.Config.Default with Fullscreen = false }
     init
     view
     subscriptions
-
-10 % 0

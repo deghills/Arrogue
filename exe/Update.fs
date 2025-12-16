@@ -14,7 +14,7 @@ type Msg =
     | EnvironmentTurn
 
     interface RayPlatform.Msg.IMsg<Model> with
-        member this.UpdateModel state =
+        member this.Update state =
             let appendMsgs msgs x = (x, msgs)
             let pass = state, []
 
@@ -45,7 +45,7 @@ type Msg =
                     Map.change
                         creatureID
                         (Option.map (fun creature -> { creature with Pos = newPos } ))
-                    |> state.TransformCreatures
+                    |> flip Model.creaturesLens.update state
                     |> appendMsgs [ if creatureID = CreatureID.player then yield EnvironmentTurn ]
 
             | MoveCreatureToward (creatureID, destination) ->
@@ -53,7 +53,7 @@ type Msg =
                 | None ->
                     pass
                 | Some creature ->
-                    match state.FindPath creature.Pos destination with
+                    match Model.findPath creature.Pos destination state with
                     | nextPos :: _ -> state, [MoveCreatureTo (creatureID, nextPos)]
                     | [] -> state, []
 
@@ -63,7 +63,7 @@ type Msg =
                     ( Creature.Attack
                     >> Option.bind
                     >> Map.change targetID
-                    >> state.TransformCreatures
+                    >> flip Model.creaturesLens.update state
                     >> appendMsgs [ if attackerID = CreatureID.player then yield EnvironmentTurn :> IMsg<Model>]
                     )
                 |> Option.defaultValue

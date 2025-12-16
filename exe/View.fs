@@ -13,7 +13,7 @@ let drawChar pos (chr: char) =
     let fontSize = (cellSize * 13) / 10
     RayPlatform.View.text (string chr) pos fontSize Colours.rayWhite
 
-let view state =
+let view (state: Model) =
     if state.Creatures.ContainsKey CreatureID.player |> not
     
     then

@@ -61,14 +61,14 @@ module RayPlatform =
         let rayWhite = Raylib.RAYWHITE
 
     module Msg =
-        [<Interface>] type IMsg<'model> = abstract member UpdateModel: 'model -> ('model * List<IMsg<'model>>)
+        [<Interface>] type IMsg<'model> = abstract member Update: 'model -> ('model * List<IMsg<'model>>)
 
         type PlatformMsgs<'model> =
             | Quit
             | ChangeWindowSize of int*int
             
             interface IMsg<'model> with
-                member this.UpdateModel model =
+                member this.Update model =
                     match this with
                     | Quit ->
                         let () =
@@ -112,7 +112,7 @@ module RayPlatform =
         let rec processMsgs (msgs: List<Msg.IMsg<'model>>) (state: 'model)=
             match msgs with
             | nextMsg :: msgQueue ->
-                let state', intermediateMsgs = nextMsg.UpdateModel state
+                let state', intermediateMsgs = nextMsg.Update state
                 processMsgs (intermediateMsgs @ msgQueue) state'
             | [] -> state
     

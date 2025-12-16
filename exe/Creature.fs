@@ -21,3 +21,9 @@ type Creature =
         match { c2 with Stats.Health = c2.Stats.Health - c1.Stats.Strength } with
         | Dead -> None
         | alive -> Some alive
+
+let spawnDummy pos =
+    { Pos = pos
+    ; Token = '@'
+    ; Stats = { Health = 100; Strength = 10 }
+    }

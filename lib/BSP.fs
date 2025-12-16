@@ -8,7 +8,7 @@ module BSP =
 
     [<RequireQualifiedAccess>]
     module Bisector =
-        type t = Horizontal of int | Vertical of int
+        type Bisector = Horizontal of int | Vertical of int
 
     [<RequireQualifiedAccess>]
     module Bounds =
@@ -54,17 +54,6 @@ module BSP =
                         yield Vec(i, j)
                 }
 
-        let randomPointWithin (bounds: t) =
-            State.state {
-                let! x = RandomPure.nextInRange bounds.MinX bounds.MaxX
-                let! y = RandomPure.nextInRange bounds.MinY bounds.MaxY
-
-                return Vec (x, y)
-            }
-            (*( rand.Next(bounds.MinX, bounds.MaxX)
-            , rand.Next(bounds.MinY, bounds.MaxY)
-            ) |> Vec*)
-
         let smallestBindingPoints (points: IntVec list) =
             let minX = points |> Seq.map _.X |> Seq.min
             let minY = points |> Seq.map _.Y |> Seq.min
@@ -72,40 +61,6 @@ module BSP =
             let maxY = points |> Seq.map _.Y |> Seq.max
 
             t (minX, maxX + 1, minY, maxY + 1)
-
-    let randomConnect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
-        State.state {
-            let! leftAnchor =
-                RandomPure.nextInRange 0 leftRoom.Length
-                |> State.map (flip List.item leftRoom)
-                |> State.bind Bounds.randomPointWithin
-
-            let! rightAnchor =
-                RandomPure.nextInRange 0 rightRoom.Length
-                |> State.map (flip List.item rightRoom)
-                |> State.bind Bounds.randomPointWithin
-
-            let intersect = Vec (leftAnchor.X, rightAnchor.Y)
-            
-            return
-                [ yield! leftRoom
-                ; yield! rightRoom
-                ; yield Bounds.smallestBindingPoints [leftAnchor; intersect]
-                ; yield Bounds.smallestBindingPoints [rightAnchor; intersect]
-                ]
-        }
-        (*let leftAnchor, rightAnchor =
-            ( leftRoom |> Seq.item (rand.Next(0, leftRoom.Length)) |> Bounds.randomPointWithin rand
-            , rightRoom |> Seq.item (rand.Next(0, rightRoom.Length)) |> Bounds.randomPointWithin rand
-            )
-
-        let intersect = Vec (leftAnchor.X, rightAnchor.Y)
-
-        [ yield! leftRoom
-        ; yield! rightRoom
-        ; yield Bounds.smallestBindingPoints [leftAnchor; intersect]
-        ; yield Bounds.smallestBindingPoints [rightAnchor; intersect]
-        ]*)
 
     let split n tree =
         let rec aux remaining t =
@@ -125,124 +80,124 @@ module BSP =
             | _ -> t
         in aux n tree
 
-    let splitRandom minSize n tree =
-        let rec aux remaining t =
-            match remaining, t with
-            | Positive, SplitTree.Branch (l, bisector, r) ->
-                State.state {
-                    let! l' = aux remaining l
-                    let! r' = aux remaining r
-
-                    return SplitTree.Branch (l', bisector, r')
-                }
-
-            | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
-                State.state {
-                    let! headsOrTails = RandomPure.nextCoinFlip
-
-                    let! x =
-                        try
-                            if headsOrTails then
-                                State.state {
-                                    let! splitPos = RandomPure.nextInRange (bounds.MinX + minSize) (bounds.MaxX - minSize)
-                                    return Bounds.split (Bisector.Vertical splitPos) bounds
-                                }
-
-                            else
-                                State.state {
-                                    let! splitPos = RandomPure.nextInRange (bounds.MinY + minSize) (bounds.MaxY - minSize)
-                                    return Bounds.split (Bisector.Horizontal splitPos) bounds
-                                }
-                        with _ -> State.return_ (SplitTree.Leaf bounds)
-
-                    return! (aux (remaining - 1) x)
-                }
-
-            | _ -> State.return_ t
-        in aux n tree
-        
-        (*let rec aux remaining t =
-            match remaining, t with
-            | Positive, SplitTree.Branch (l, bisector, r) ->
-                SplitTree.Branch (aux remaining l, bisector, aux remaining r)
-
-            | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
-                try
-                    if rand.CoinFlip() then
-                        Bounds.split
-                            (rand.Next(bounds.MinX + minSize, bounds.MaxX - minSize) |> Bisector.Vertical)
-                            bounds
-                    else
-                        Bounds.split
-                            (rand.Next(bounds.MinY + minSize, bounds.MaxY - minSize) |> Bisector.Horizontal)
-                            bounds
-                with
-                    | :? System.ArgumentOutOfRangeException -> SplitTree.Leaf bounds
-                    | exn -> raise exn
-                |> aux (remaining - 1)
-
-            | _ -> t
-        in aux n tree*)
-
     let shrink n (bounds: Bounds.t) =
         Bounds.t (bounds.MinX + n, bounds.MaxX - n, bounds.MinY + n, bounds.MaxY - n)
 
-    let randomSubroom minSize (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
-        let makeBoundsSmaller (bounds: Bounds.t) =
+    type RandomBSPFunctions<'structure>(randLens: Lens.t<'structure, RandomPure.seed>) =
+        let rand = RandomPure.Rand randLens
+
+        member _.RandomPointWithinBounds (bounds: Bounds.t) =
             State.state {
-                let! width = RandomPure.nextInRange minSize bounds.Width
-                let! height = RandomPure.nextInRange minSize bounds.Height
-                let! minX = RandomPure.nextInRange bounds.MinX (bounds.MaxX - width)
-                let! minY = RandomPure.nextInRange bounds.MinY (bounds.MaxY - height)
-                let maxX = minX + width
-                let maxY = minY + height
-                
-                return Bounds.t (minX, maxX, minY, maxY)
+                let! x = rand.NextInRange bounds.MinX bounds.MaxX
+                let! y = rand.NextInRange bounds.MinY bounds.MaxY
+
+                return Vec (x, y)
+            }
+        
+        member this.RandomConnect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
+            State.state {
+                let! leftAnchor =
+                    rand.NextInRange 0 leftRoom.Length
+                    |> State.map (flip List.item leftRoom)
+                    |> State.bind this.RandomPointWithinBounds
+
+                let! rightAnchor =
+                    rand.NextInRange 0 rightRoom.Length
+                    |> State.map (flip List.item rightRoom)
+                    |> State.bind this.RandomPointWithinBounds
+
+                let intersect = Vec (leftAnchor.X, rightAnchor.Y)
+            
+                return
+                    [ yield! leftRoom
+                    ; yield! rightRoom
+                    ; yield Bounds.smallestBindingPoints [leftAnchor; intersect]
+                    ; yield Bounds.smallestBindingPoints [rightAnchor; intersect]
+                    ]
             }
 
-        let rec mapWithState (mapping: 'a -> State.t<'state, 'b>) : SplitTree.t<'bisector, 'a> -> State.t<'state, SplitTree.t<'bisector, 'b>> = function
-            | SplitTree.Branch (l: SplitTree.t<'bisector, 'a>, bounds: 'bisector, r: SplitTree.t<'bisector, 'a>) ->
+        member _.RandomSplit minSize n tree =
+            let rec aux remaining t =
+                match remaining, t with
+                | Positive, SplitTree.Branch (l, bisector, r) ->
+                    State.state {
+                        let! l' = aux remaining l
+                        let! r' = aux remaining r
+
+                        return SplitTree.Branch (l', bisector, r')
+                    }
+
+                | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
+                    State.state {
+                        let! headsOrTails = rand.CoinFlip
+
+                        let! x =
+                            try
+                                if headsOrTails then
+                                    State.state {
+                                        let! splitPos = rand.NextInRange (bounds.MinX + minSize) (bounds.MaxX - minSize)
+                                        return Bounds.split (Bisector.Vertical splitPos) bounds
+                                    }
+
+                                else
+                                    State.state {
+                                        let! splitPos = rand.NextInRange (bounds.MinY + minSize) (bounds.MaxY - minSize)
+                                        return Bounds.split (Bisector.Horizontal splitPos) bounds
+                                    }
+                            with _ -> State.return_ (SplitTree.Leaf bounds)
+
+                        return! (aux (remaining - 1) x)
+                    }
+
+                | _ -> State.return_ t
+            in aux n tree
+
+        member _.RandomSubroom minSize (bsp: SplitTree.t<Bisector.Bisector, Bounds.t>) =
+            let makeBoundsSmaller (bounds: Bounds.t) =
                 State.state {
-                    let! l' = mapWithState mapping l
-                    let! r' = mapWithState mapping r
-                    return SplitTree.Branch (l', bounds, r')
+                    let! width = rand.NextInRange minSize bounds.Width
+                    let! height = rand.NextInRange minSize bounds.Height
+                    let! minX = rand.NextInRange bounds.MinX (bounds.MaxX - width)
+                    let! minY = rand.NextInRange bounds.MinY (bounds.MaxY - height)
+                    let maxX = minX + width
+                    let maxY = minY + height
+                
+                    return Bounds.t (minX, maxX, minY, maxY)
                 }
 
-            | SplitTree.Leaf x -> State.state { return! mapping x |> State.map SplitTree.Leaf }
+            let rec mapWithState (mapping: 'a -> State.t<'state, 'b>) : SplitTree.t<'bisector, 'a> -> State.t<'state, SplitTree.t<'bisector, 'b>> = function
+                | SplitTree.Branch (l: SplitTree.t<'bisector, 'a>, bounds: 'bisector, r: SplitTree.t<'bisector, 'a>) ->
+                    State.state {
+                        let! l' = mapWithState mapping l
+                        let! r' = mapWithState mapping r
+                        return SplitTree.Branch (l', bounds, r')
+                    }
 
-        in mapWithState makeBoundsSmaller bsp
-        
-        (*let makeBoundsSmaller (bounds: Bounds.t) =
-            let width' = rand.Next(minSize, bounds.Width)
-            let height' = rand.Next(minSize, bounds.Height)
+                | SplitTree.Leaf x -> State.state { return! mapping x |> State.map SplitTree.Leaf }
 
-            let minX = rand.Next(bounds.MinX, bounds.MaxX - width')
-            let minY = rand.Next(bounds.MinY, bounds.MaxY -  height')
-            let maxX = minX + width'
-            let maxY = minY + height'
+            in mapWithState makeBoundsSmaller bsp
 
-            Bounds.t (minX, maxX, minY, maxY)
-    
-        bsp
-        |> SplitTree.map makeBoundsSmaller*)
+        member this.RandomPaths (bsp: SplitTree.t<Bisector.Bisector, Bounds.t>) =
+            bsp
+            |> SplitTree.map (List.singleton >> State.return_)
+            |> SplitTree.interpret
+                (fun _ a b -> 
+                    State.state {
+                        let! a = a
+                        let! b = b
+                        return! this.RandomConnect a b
+                    }
+                )
 
-    let buildRandomPaths (bsp: SplitTree.t<Bisector.t, Bounds.t>) =
-        bsp
-        |> SplitTree.map (List.singleton >> State.return_)
-        |> SplitTree.interpret
-            (fun _ a b -> 
-                State.state {
-                    let! a = a
-                    let! b = b
-                    return! randomConnect a b
-                }
-            )
-
-    let genRandomMap startingBounds minRoomSize divisions =
+    let genRandomMap lens startingBounds minRoomSize divisions =
         let minRoomSize = minRoomSize + 2
+        let randFuncs = RandomBSPFunctions lens
+
         startingBounds
         |> SplitTree.Leaf
-        |> splitRandom minRoomSize divisions
-        |> State.bind (randomSubroom minRoomSize)
+        |> randFuncs.RandomSplit minRoomSize divisions
+        |> State.bind (randFuncs.RandomSubroom minRoomSize)
         |> (SplitTree.map >> State.map) (shrink 1)
-        |> State.bind buildRandomPaths
+        |> State.bind randFuncs.RandomPaths
+        |> State.map (Seq.collect Bounds.containedPoints)
+        |> State.map Set

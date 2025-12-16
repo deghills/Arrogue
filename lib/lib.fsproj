@@ -10,6 +10,7 @@
     <Compile Include="IntVec.fs" />
     <Compile Include="RayPlatform.fs" />
     <Compile Include="SplitTree.fs" />
+    <Compile Include="RandomPure.fs" />
     <Compile Include="BSP.fs" />
   </ItemGroup>
 
