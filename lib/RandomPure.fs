@@ -14,32 +14,30 @@ module RandomPure =
         >> s' id (flip (<<<) 5) (^^^)
         ) |> intLens.update
 
-    type Rand<'structure> (randLens: Lens.t<'structure, seed>) =
-        member _.Next =
-            { State.RunState =
-                fun structure ->
-                    let oldSeed = randLens.get structure
-                    randLens.update xorShift structure, oldSeed.Seed
-            }
+    let next =
+        { State.RunState =
+            fun structure ->
+                xorShift structure, structure.Seed
+        }
 
-        member this.NextInRange minBounds maxBounds =
-            if minBounds > maxBounds then raise (ArgumentOutOfRangeException($"{minBounds} {maxBounds}"))
+    let nextInRange minBounds maxBounds =
+        if minBounds > maxBounds then raise (ArgumentOutOfRangeException($"{minBounds} {maxBounds}"))
 
-            if minBounds = maxBounds
-            then State.return_ minBounds
-            else State.map
-                    (fun seed ->
-                        betterModulo
-                            seed
-                            (maxBounds - minBounds)
-                        + minBounds
-                    )
-                    this.Next
+        if minBounds = maxBounds
+        then State.return_ minBounds
+        else State.map
+                (fun seed ->
+                    betterModulo
+                        seed
+                        (maxBounds - minBounds)
+                    + minBounds
+                )
+                next
 
-        member this.CoinFlip = State.map ((<) 0) this.Next
+    let coinFlip = State.map ((<) 0) next
 
-        member this.RandomItem xs =
-            State.state {
-                let! index = this.NextInRange 0 (Seq.length xs)
-                return Seq.item index xs
-            }
+    let randomItem xs =
+        State.state {
+            let! index = nextInRange 0 (Seq.length xs)
+            return Seq.item index xs
+        }

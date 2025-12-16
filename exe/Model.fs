@@ -19,21 +19,21 @@ let empty =
     ; Seed = { Seed = 69 }
     }
 
-///Dijkstra/A* (Euclidean norm heuristic)
+///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) model =
     let freeTiles = Set model.Map
             
     let getNeighbours (p: IntVec) =
         Set.intersect
             ( Set.empty
-            |> Set.add(p + IntVec.Up)
-            |> Set.add(p + IntVec.Up + IntVec.Left)
-            |> Set.add(p + IntVec.Up + IntVec.Right)
-            |> Set.add(p + IntVec.Left)
-            |> Set.add(p + IntVec.Right)
-            |> Set.add(p + IntVec.Down)
-            |> Set.add(p + IntVec.Down + IntVec.Left)
-            |> Set.add(p + IntVec.Down + IntVec.Right)
+            |> Set.add (p + IntVec.Up)
+            |> Set.add (p + IntVec.Up + IntVec.Left)
+            |> Set.add (p + IntVec.Up + IntVec.Right)
+            |> Set.add (p + IntVec.Left)
+            |> Set.add (p + IntVec.Right)
+            |> Set.add (p + IntVec.Down)
+            |> Set.add (p + IntVec.Down + IntVec.Left)
+            |> Set.add (p + IntVec.Down + IntVec.Right)
             )
             freeTiles
 
@@ -107,11 +107,12 @@ let mapLens =
     ; Lens.update = fun endomorphism model -> { model with Map = endomorphism model.Map }
     }
 
-let genNewMap (model: Model) =
-    genRandomMap randomLens (Bounds.t (0, 64, 0, 32)) 4 4
-    |> _.RunState(model)
-    |> fun (newModel, newMap) ->
-        mapLens.update (konst newMap) newModel
+let genNewMap model =
+    (genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4).RunState(model.Seed)
+    |> fun (newSeed, newMap) ->
+        model
+        |> randomLens.update (konst newSeed)
+        |> mapLens.update (konst newMap)
 
 (*let spawnCreaturesAtRandom model creatures =
     let rand = RandomPure.Rand(randomLens)

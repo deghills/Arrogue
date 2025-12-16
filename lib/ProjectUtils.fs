@@ -22,7 +22,10 @@ module ProjectUtils =
 
     [<RequireQualifiedAccess>]
     module Lens =
-        type t<'structure, 'focus> = { get: 'structure -> 'focus; update: ('focus -> 'focus) -> 'structure -> 'structure }
+        type t<'structure, 'focus> =
+            { get: 'structure -> 'focus
+            ; update: ('focus -> 'focus) -> 'structure -> 'structure
+            } member this.set x = this.update (konst x)
 
         let compose { get = leftGet; update = leftSet } { get = rightGet; update = rightSet } =
             { get = leftGet >> rightGet; update = rightSet >> leftSet }

@@ -60,7 +60,7 @@ type Msg =
             | AttackCreature (attackerID, targetID) ->
                 Map.tryFind attackerID state.Creatures
                 |> Option.map
-                    ( Creature.Attack
+                    ( Creature.attack
                     >> Option.bind
                     >> Map.change targetID
                     >> flip Model.creaturesLens.update state
