@@ -9,9 +9,9 @@ module RandomPure =
     let intLens = { Lens.get = _.Seed; Lens.update = fun f r -> { r with Seed = f r.Seed }}
 
     let xorShift =
-        (  s' id (flip (<<<) 13) (^^^)
-        >> s' id (flip (>>>) 17) (^^^)
-        >> s' id (flip (<<<) 5) (^^^)
+        (  s' id (^^^) (flip (<<<) 13)
+        >> s' id (^^^) (flip (>>>) 17)
+        >> s' id (^^^) (flip (<<<) 5)
         ) |> intLens.update
 
     let next =

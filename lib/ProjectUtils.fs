@@ -5,8 +5,7 @@ open System
 module ProjectUtils =
     let flip f a b = f b a
     let konst x _ = x
-    let s unary binary x = binary x (unary x)
-    let s' unaryLeft unaryRight binary x = binary (unaryLeft x) (unaryRight x)
+    let s' unaryLeft binary unaryRight x = binary (unaryLeft x) (unaryRight x)
 
     let betterModulo i m =
         ((i % m) + m) % m
