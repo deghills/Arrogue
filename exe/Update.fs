@@ -1,11 +1,14 @@
 ﻿module Update
 
 open Rogue.Lib
-open RayPlatform.Msg
+open RayPlatform
+open PlatformMsgs
 open ProjectUtils
-open Creature
 open Model
 
+// i think I will dissolve the Msg type and just have them all be separate IMsg values.
+// only thing I need to be careful of is if losing mututal recursion when doing this matters
+// at the very least, maybe this will cut out some of the boilerplate and indentation depth
 type Msg =
     | GenericAction of EntityID * IntVec
     | AttackCreature of EntityID * EntityID
@@ -13,7 +16,7 @@ type Msg =
     | MoveCreatureToward of EntityID * IntVec
     | EnvironmentTurn
 
-    interface RayPlatform.Msg.IMsg<Model> with
+    interface IMsg<Model> with
         member this.Update state =
             let appendMsgs msgs x = (x, msgs)
             let pass = state, []
@@ -25,9 +28,11 @@ type Msg =
                 |> Result.bind
                     (fun creature ->
                         let targetIsInRange = IntVec.NormChebyshev (targetPos - creature.Pos) <= 1
+                        
                         match Map.tryFindKey (fun _ c -> c.Pos = targetPos) state.Tiles with
                         | Some targetID when targetIsInRange ->
                             Ok (state, [AttackCreature (creatureID, targetID) :> IMsg<Model>])
+                        
                         | _ ->
                             Error (state, [MoveCreatureToward (creatureID, targetPos) :> IMsg<Model>])
                     )
@@ -70,7 +75,7 @@ type Msg =
 
             | EnvironmentTurn ->
                 match Map.tryFind EntityID.player state.Tiles with
-                | None -> state, [ Quit ]
+                | None -> state, [ quit ]
 
                 | Some player ->
                     ( state

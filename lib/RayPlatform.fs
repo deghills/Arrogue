@@ -60,29 +60,27 @@ module RayPlatform =
     module Colours =
         let rayWhite = Raylib.RAYWHITE
 
-    module Msg =
-        [<Interface>] type IMsg<'model> = abstract member Update: 'model -> ('model * List<IMsg<'model>>)
+    type IMsg<'model> = abstract member Update: 'model -> ('model * List<IMsg<'model>>)
+    type IViewable<'msg, 'model> = abstract member View: Unit -> List<IMsg<'model>>
+    type ISubscription<'msg, 'model> = abstract member OnTick: TickInfo -> List<IMsg<'model>>
+    
+    module PlatformMsgs =
+        let private asMsg f = { new IMsg<'msg> with member _.Update m = f m }
 
-        type PlatformMsgs<'model> =
-            | Quit
-            | ChangeWindowSize of int*int
-            
-            interface IMsg<'model> with
-                member this.Update model =
-                    match this with
-                    | Quit ->
-                        let () =
-                            Raylib.CloseWindow()
-                            printfn "GAME OVER"
-                            exit 0
-                        model, []
+        let quit =
+            { new IMsg<'msg> with
+                member _.Update _ =
+                    let () =
+                        Raylib.CloseWindow()
+                        printfn "GAME OVER"
+                    exit 0
+            }
 
-                    | ChangeWindowSize (resX, resY) ->
-                        let () = Raylib.SetWindowSize(resX, resY)
-                        model, []
+        let changeWindowSize horz vert =
+            let () = Raylib.SetWindowSize(horz, vert)
+            asMsg (fun model -> model, [])
 
-    module View =
-        [<Interface>] type IViewable<'msg, 'model> = abstract member View: Unit -> List<Msg.IMsg<'model>>
+    module Viewables =
 
         let compose (viewable1: IViewable<'msg, 'model>) (viewable2: IViewable<'msg, 'model>) =
             { new IViewable<'msg, 'model> with member _.View() = viewable1.View() @ viewable2.View() }
@@ -93,14 +91,11 @@ module RayPlatform =
 
         let zero = { new IViewable<'msg, 'model> with member _.View() = [] }
 
-    module Subscription =
-        [<Interface>] type ISubscription<'msg, 'model> = abstract member OnTick: TickInfo -> List<Msg.IMsg<'model>>
-
     let run
         (cfg: Config)
         (init: 'model)
-        (view: 'model -> View.IViewable<'msg, 'model>)
-        (subscription: 'model -> Subscription.ISubscription<'msg, 'model>)
+        (view: 'model -> IViewable<'msg, 'model>)
+        (subscription: 'model -> ISubscription<'msg, 'model>)
     
         = do
         Raylib.InitWindow (fst cfg.Resolution, snd cfg.Resolution, "a game to be played")
@@ -109,7 +104,7 @@ module RayPlatform =
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
 
-        let rec processMsgs (msgs: List<Msg.IMsg<'model>>) (state: 'model)=
+        let rec processMsgs (msgs: List<IMsg<'model>>) (state: 'model)=
             match msgs with
             | nextMsg :: msgQueue ->
                 let state', intermediateMsgs = nextMsg.Update state

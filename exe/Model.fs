@@ -51,10 +51,8 @@ let mapLens =
     }
 
 let spawnCreature entityID tile creature =
-    let creatureLens = Lens.compose creaturesLens (Map.itemLens entityID)
-    let tileLens = Lens.compose tilesLens (Map.itemLens entityID)
-    creatureLens.set (Some creature)
-    >> tileLens.set (Some tile)
+    (creaturesLens $ Map.itemLens entityID).set (Some creature)
+    >> (tilesLens $ Map.itemLens entityID).set (Some tile)
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) model =
