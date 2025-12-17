@@ -2,13 +2,8 @@
 
 open Rogue.Lib
 
-type CreatureID =
-    | player = -69
-
 type Creature =
-    { Pos       : IntVec
-    ; Token     : char
-    ; Health    : int
+    { Health    : int
     ; Strength  : int
     }
 
@@ -17,9 +12,7 @@ let attack (c1: Creature) (c2: Creature) : option<Creature> =
     | dead when dead.Health < 1 -> None
     | alive -> Some alive
 
-let dummy pos =
-    { Pos = pos
-    ; Token = '@'
-    ; Health = 100
+let dummy =
+    { Health = 100
     ; Strength = 10
     }

@@ -14,7 +14,7 @@ let drawChar pos (chr: char) =
     RayPlatform.View.text (string chr) pos fontSize Colours.rayWhite
 
 let view (state: Model) =
-    if state.Creatures.ContainsKey CreatureID.player |> not
+    if state.Creatures.ContainsKey EntityID.player |> not
     
     then
         View.text
@@ -32,6 +32,6 @@ let view (state: Model) =
             Seq.fold
                 (fun acc (_, creature) -> Map.add creature.Pos creature.Token acc)
                 mapTiles
-                (Map.toSeq state.Creatures)
+                (Map.toSeq state.Tiles)
         |> Seq.map (function KeyValue (pos, chr) -> drawChar (pos * cellSize) chr)
         |> Seq.fold (RayPlatform.View.compose) RayPlatform.View.zero

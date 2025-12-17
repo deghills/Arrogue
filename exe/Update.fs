@@ -7,10 +7,10 @@ open Creature
 open Model
 
 type Msg =
-    | GenericAction of CreatureID * IntVec
-    | AttackCreature of CreatureID * CreatureID
-    | MoveCreatureTo of CreatureID * IntVec
-    | MoveCreatureToward of CreatureID * IntVec
+    | GenericAction of EntityID * IntVec
+    | AttackCreature of EntityID * EntityID
+    | MoveCreatureTo of EntityID * IntVec
+    | MoveCreatureToward of EntityID * IntVec
     | EnvironmentTurn
 
     interface RayPlatform.Msg.IMsg<Model> with
@@ -20,12 +20,12 @@ type Msg =
 
             match this with
             | GenericAction (creatureID, targetPos) ->
-                state.Creatures.TryFind creatureID
+                Map.tryFind creatureID state.Tiles
                 |> Option.toResult pass
                 |> Result.bind
                     (fun creature ->
                         let targetIsInRange = IntVec.NormChebyshev (targetPos - creature.Pos) <= 1
-                        match Map.tryFindKey (fun _ c -> c.Pos = targetPos) state.Creatures with
+                        match Map.tryFindKey (fun _ c -> c.Pos = targetPos) state.Tiles with
                         | Some targetID when targetIsInRange ->
                             Ok (state, [AttackCreature (creatureID, targetID) :> IMsg<Model>])
                         | _ ->
@@ -35,7 +35,7 @@ type Msg =
 
             | MoveCreatureTo (creatureID, newPos) ->
                 let spaceIsOccupied =
-                    Map.exists (konst (_.Pos >> (=) newPos)) state.Creatures
+                    Map.exists (konst (_.Pos >> (=) newPos)) state.Tiles
                     ||
                     not (Set.contains newPos state.Map)
 
@@ -45,11 +45,11 @@ type Msg =
                     Map.change
                         creatureID
                         (Option.map (fun creature -> { creature with Pos = newPos } ))
-                    |> flip Model.creaturesLens.update state
-                    |> appendMsgs [ if creatureID = CreatureID.player then yield EnvironmentTurn ]
+                    |> flip Model.tilesLens.update state
+                    |> appendMsgs [ if creatureID = EntityID.player then yield EnvironmentTurn ]
 
             | MoveCreatureToward (creatureID, destination) ->
-                match Map.tryFind creatureID state.Creatures with
+                match Map.tryFind creatureID state.Tiles with
                 | None ->
                     pass
                 | Some creature ->
@@ -64,20 +64,20 @@ type Msg =
                     >> Option.bind
                     >> Map.change targetID
                     >> flip Model.creaturesLens.update state
-                    >> appendMsgs [ if attackerID = CreatureID.player then yield EnvironmentTurn :> IMsg<Model>]
+                    >> appendMsgs [ if attackerID = EntityID.player then yield EnvironmentTurn :> IMsg<Model>]
                     )
                 |> Option.defaultValue
                     pass
 
             | EnvironmentTurn ->
-                match Map.tryFind CreatureID.player state.Creatures with
+                match Map.tryFind EntityID.player state.Tiles with
                 | None -> state, [ Quit ]
 
                 | Some player ->
                     ( state
                     , List.choose
                         (function
-                        | CreatureID.player, _ ->
+                        | EntityID.player, _ ->
                             None
                         | npcID, _ ->
                             GenericAction (npcID, player.Pos)

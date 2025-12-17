@@ -4,21 +4,58 @@ open Rogue.Lib
 open ProjectUtils
 open Creature
 
-open BSP
+type EntityID =
+    | player = -1
 
+type ComponentStore<'component_> = Map<EntityID, 'component_>
+module ComponentStore =
+    let empty : ComponentStore<'t> = Map.empty
+
+type Tile =
+    { Pos: IntVec
+    ; Token: char
+    }
 
 type Model =
-    { Creatures: Map<CreatureID, Creature>
+    { Tiles: ComponentStore<Tile>
+    ; Creatures: ComponentStore<Creature>
     ; Map: Set<IntVec>
     ; Seed: RandomPure.seed
     }
 
+
 let empty =
-    { Creatures = Map.empty
+    { Tiles = ComponentStore.empty
+    ; Creatures = ComponentStore.empty
     ; Map = Set.empty
-    ; Seed = { Seed = 69 }
+    ; Seed = { Seed = 69 } }
+
+let tilesLens =
+    { Lens.get = fun model -> model.Tiles
+    ; Lens.update = fun endomorphism model -> { model with Tiles = endomorphism model.Tiles}
     }
 
+let creaturesLens =
+    { Lens.get = _.Creatures
+    ; Lens.update = fun endomorphism model -> { model with Creatures = endomorphism model.Creatures }
+    }
+
+let randomLens =
+    { Lens.get = _.Seed
+    ; Lens.update = fun endomorphism model -> { model with Seed = endomorphism model.Seed }
+    }
+
+let mapLens =
+    { Lens.get = _.Map
+    ; Lens.update = fun endomorphism model -> { model with Map = endomorphism model.Map }
+    }
+
+let spawnCreature entityID tile creature =
+    let creatureLens = Lens.compose creaturesLens (Map.itemLens entityID)
+    let tileLens = Lens.compose tilesLens (Map.itemLens entityID)
+    creatureLens.set (Some creature)
+    >> tileLens.set (Some tile)
+    
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) model =
     let freeTiles = Set model.Map
@@ -92,23 +129,8 @@ let findPath (start: IntVec) (finish: IntVec) model =
             path
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
-let creaturesLens =
-    { Lens.get = _.Creatures
-    ; Lens.update = fun endomorphism model -> { model with Creatures = endomorphism model.Creatures }
-    }
-
-let randomLens =
-    { Lens.get = _.Seed
-    ; Lens.update = fun endomorphism model -> { model with Seed = endomorphism model.Seed }
-    }
-
-let mapLens =
-    { Lens.get = _.Map
-    ; Lens.update = fun endomorphism model -> { model with Map = endomorphism model.Map }
-    }
-
 let genNewMap model =
-    (genRandomMap (Bounds.t (0, 64, 0, 32)) 4 4).RunState(model.Seed)
+    (BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4).RunState(model.Seed)
     |> fun (newSeed, newMap) ->
         model
         |> randomLens.update (konst newSeed)

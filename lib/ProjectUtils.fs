@@ -57,6 +57,11 @@ module ProjectUtils =
 
         let state = StateBuilder()
 
+    module Map =
+        let itemLens key =
+            { Lens.get = Map.tryFind key
+            ; Lens.update = Map.change key }
+
     module Seq =
         let (|Cons|Nil|) xs =
             match Seq.tryHead xs with
