@@ -12,8 +12,8 @@ open Model
 type Msg =
     | GenericAction of EntityID * IntVec
     | AttackCreature of EntityID * EntityID
-    | MoveCreatureTo of EntityID * IntVec
-    | MoveCreatureToward of EntityID * IntVec
+    | MoveToTile of EntityID * IntVec
+    | MoveTowardTile of EntityID * IntVec
     | EnvironmentTurn
 
     interface IMsg<Model> with
@@ -34,11 +34,11 @@ type Msg =
                             Ok (state, [AttackCreature (creatureID, targetID) :> IMsg<Model>])
                         
                         | _ ->
-                            Error (state, [MoveCreatureToward (creatureID, targetPos) :> IMsg<Model>])
+                            Error (state, [MoveTowardTile (creatureID, targetPos) :> IMsg<Model>])
                     )
                 |> function Ok result | Error result -> result
 
-            | MoveCreatureTo (creatureID, newPos) ->
+            | MoveToTile (creatureID, newPos) ->
                 let spaceIsOccupied =
                     Map.exists (konst (_.Pos >> (=) newPos)) state.Tiles
                     ||
@@ -52,11 +52,11 @@ type Msg =
                         state
                     |> appendMsgs [ if creatureID = EntityID.player then yield EnvironmentTurn ]
 
-            | MoveCreatureToward (entityID, destination) ->
+            | MoveTowardTile (entityID, destination) ->
                 match Map.tryFind entityID state.Tiles with
                 | Some tile ->
                     match Model.findPath tile.Pos destination state with
-                    | nextPos :: _ -> state, [MoveCreatureTo (entityID, nextPos)]
+                    | nextPos :: _ -> state, [MoveToTile (entityID, nextPos)]
                     | [] -> state, []
                 | None ->
                     pass
@@ -66,9 +66,8 @@ type Msg =
                 |> Option.map
                     ( Creature.attack
                     >> Option.bind
-                    >> Map.change targetID
-                    >> flip Model.creaturesLens.update state
-                    >> appendMsgs [ if attackerID = EntityID.player then yield EnvironmentTurn :> IMsg<Model>]
+                    >> flip (creaturesLens $ Map.itemLens targetID).update state
+                    >> appendMsgs [ if attackerID = EntityID.player then yield EnvironmentTurn :> IMsg<Model> ]
                     )
                 |> Option.defaultValue
                     pass

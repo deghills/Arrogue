@@ -2,22 +2,20 @@
 
 open Rogue.Lib
 open RayPlatform
-open ProjectUtils
 open Model
-open Creature
 
 
 let cellSize = 30
 
 let drawChar pos (chr: char) =
     let fontSize = (cellSize * 13) / 10
-    RayPlatform.View.text (string chr) pos fontSize Colours.rayWhite
+    Viewables.text (string chr) pos fontSize Colours.rayWhite
 
 let view (state: Model) =
-    if state.Creatures.ContainsKey EntityID.player |> not
+    if not (state.Creatures.ContainsKey EntityID.player)
     
     then
-        View.text
+        Viewables.text
             "the player has died!\npress any key to close window"
             (Vec (0, 0))
             20
@@ -30,8 +28,8 @@ let view (state: Model) =
             state.Map
         |> fun mapTiles ->
             Seq.fold
-                (fun acc (_, creature) -> Map.add creature.Pos creature.Token acc)
+                (fun acc (_, tile) -> Map.add tile.Pos tile.Token acc)
                 mapTiles
                 (Map.toSeq state.Tiles)
         |> Seq.map (function KeyValue (pos, chr) -> drawChar (pos * cellSize) chr)
-        |> Seq.fold (RayPlatform.View.compose) RayPlatform.View.zero
+        |> Seq.fold (Viewables.compose) RayPlatform.Viewables.zero

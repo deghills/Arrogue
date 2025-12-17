@@ -2,7 +2,6 @@
 
 open Rogue.Lib
 open RayPlatform
-open Msg
 open Update
 open Creature
 
@@ -10,7 +9,7 @@ open Model
 
 
 let subscriptions (state: Model) =
-    { new RayPlatform.Subscription.ISubscription<Msg, Model> with
+    { new RayPlatform.ISubscription<Msg, Model> with
         member _.OnTick tick =
             match state.Tiles.TryFind EntityID.player with
             | Some { Pos = playerPos } ->
@@ -27,5 +26,5 @@ let subscriptions (state: Model) =
                     yield EnvironmentTurn
                 ]
             | None ->
-                [ Quit ]
+                [ PlatformMsgs.quit ]
     }
