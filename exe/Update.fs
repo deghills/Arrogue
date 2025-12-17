@@ -41,21 +41,20 @@ type Msg =
 
                 if spaceIsOccupied then
                     pass
-                else
-                    Map.change
-                        creatureID
+                else    
+                    (Model.tilesLens $ Map.itemLens creatureID).update
                         (Option.map (fun creature -> { creature with Pos = newPos } ))
-                    |> flip Model.tilesLens.update state
+                        state
                     |> appendMsgs [ if creatureID = EntityID.player then yield EnvironmentTurn ]
 
-            | MoveCreatureToward (creatureID, destination) ->
-                match Map.tryFind creatureID state.Tiles with
+            | MoveCreatureToward (entityID, destination) ->
+                match Map.tryFind entityID state.Tiles with
+                | Some tile ->
+                    match Model.findPath tile.Pos destination state with
+                    | nextPos :: _ -> state, [MoveCreatureTo (entityID, nextPos)]
+                    | [] -> state, []
                 | None ->
                     pass
-                | Some creature ->
-                    match Model.findPath creature.Pos destination state with
-                    | nextPos :: _ -> state, [MoveCreatureTo (creatureID, nextPos)]
-                    | [] -> state, []
 
             | AttackCreature (attackerID, targetID) ->
                 Map.tryFind attackerID state.Creatures

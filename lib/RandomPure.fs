@@ -12,12 +12,12 @@ module RandomPure =
         (  s' id (^^^) (flip (<<<) 13)
         >> s' id (^^^) (flip (>>>) 17)
         >> s' id (^^^) (flip (<<<) 5)
-        ) |> intLens.update
+        )
 
     let next =
         { State.RunState =
-            fun structure ->
-                xorShift structure, structure.Seed
+            fun { Seed = seed } ->
+                { Seed = xorShift seed}, seed
         }
 
     let nextInRange minBounds maxBounds =

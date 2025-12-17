@@ -24,10 +24,10 @@ module ProjectUtils =
         type t<'structure, 'focus> =
             { get: 'structure -> 'focus
             ; update: ('focus -> 'focus) -> 'structure -> 'structure
-            } member this.set x = this.update (konst x)
-
-        let compose { get = leftGet; update = leftSet } { get = rightGet; update = rightSet } =
-            { get = leftGet >> rightGet; update = rightSet >> leftSet }
+            }
+            member this.set x = this.update (konst x)
+            static member ($) ({ get = leftGet; update = leftUpdate }, { get = rightGet; update = rightUpdate }) =
+                { get = leftGet >> rightGet; update = rightUpdate >> leftUpdate }
 
         let identity = { get = id; update = id }
 
@@ -89,6 +89,12 @@ module ProjectUtils =
             >> String.concat ""
 
     module Option =
+        type OptionCEBuilder() =
+            member _.Bind(x, f) = Option.bind f x
+            member _.Return x = Some x
+
+        let option = OptionCEBuilder()
+
         let toResult (errorWhenNone: 'error) = function
             | Some x -> Ok x
             | None -> Error errorWhenNone
