@@ -11,18 +11,23 @@ type ComponentStore<'component_> = Map<EntityID, 'component_>
 module ComponentStore =
     let empty : ComponentStore<'t> = Map.empty
 
-type Tile =
+type GamePiece =
     { Pos: IntVec
     ; Token: char
     }
 
 type Model =
-    { Tiles: ComponentStore<Tile>
-    ; Creatures: ComponentStore<Creature>
-    ; Map: Set<IntVec>
+    { Map: Set<IntVec>
     ; Seed: RandomPure.seed
+
+    //components
+    ; Tiles: ComponentStore<GamePiece>
+    ; Creatures: ComponentStore<Creature>
     }
 
+module Component =
+    let tile entityID =
+        Map.itemLens entityID
 
 let empty =
     { Tiles = ComponentStore.empty
@@ -30,29 +35,29 @@ let empty =
     ; Map = Set.empty
     ; Seed = { Seed = 69 } }
 
-let tilesLens =
+let gamePiecesL =
     { Lens.get = fun model -> model.Tiles
-    ; Lens.update = fun endomorphism model -> { model with Tiles = endomorphism model.Tiles}
+    ; Lens.change = fun endomorphism model -> { model with Tiles = endomorphism model.Tiles}
     }
 
-let creaturesLens =
+let creaturesL =
     { Lens.get = _.Creatures
-    ; Lens.update = fun endomorphism model -> { model with Creatures = endomorphism model.Creatures }
+    ; Lens.change = fun endomorphism model -> { model with Creatures = endomorphism model.Creatures }
     }
 
-let randomLens =
+let randomL =
     { Lens.get = _.Seed
-    ; Lens.update = fun endomorphism model -> { model with Seed = endomorphism model.Seed }
+    ; Lens.change = fun endomorphism model -> { model with Seed = endomorphism model.Seed }
     }
 
-let mapLens =
+let mapL =
     { Lens.get = _.Map
-    ; Lens.update = fun endomorphism model -> { model with Map = endomorphism model.Map }
+    ; Lens.change = fun endomorphism model -> { model with Map = endomorphism model.Map }
     }
 
-let spawnCreature entityID tile creature =
-    (creaturesLens $ Map.itemLens entityID).set (Some creature)
-    >> (tilesLens $ Map.itemLens entityID).set (Some tile)
+let spawnCreature entityID gamePiece creature =
+    (creaturesL $ Map.itemLens entityID).set (Some creature)
+    >> (gamePiecesL $ Map.itemLens entityID).set (Some gamePiece)
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) model =
@@ -90,7 +95,7 @@ let findPath (start: IntVec) (finish: IntVec) model =
                 (* technically chebyshev norm says that ||(x, 0)|| = ||(x, x)||, which can lead to unnatural looking pathing
                 ** even though it's still technically an optimal path under the chebyshev norm.
                 ** for multiple optimal paths, tie-breaking with the manhattan distance here
-                ** will choose a more natural looking one *)
+                ** will choose the most natural looking one *)
                 |> Seq.tryMinBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
             with
             | None -> [] //queue is empty, no path exists
@@ -128,11 +133,12 @@ let findPath (start: IntVec) (finish: IntVec) model =
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
 let genNewMap model =
-    (BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4).RunState(model.Seed)
+    BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
+    |> _.RunState(model.Seed)
     |> fun (newSeed, newMap) ->
         model
-        |> randomLens.update (konst newSeed)
-        |> mapLens.update (konst newMap)
+        |> randomL.change (konst newSeed)
+        |> mapL.change (konst newMap)
 
 (*let spawnCreaturesAtRandom model creatures =
     let rand = RandomPure.Rand(randomLens)

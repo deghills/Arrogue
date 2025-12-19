@@ -19,48 +19,10 @@ module ProjectUtils =
         member this.CoinFlip() =
             this.Next() > 0
 
-    [<RequireQualifiedAccess>]
-    module Lens =
-        type t<'structure, 'focus> =
-            { get: 'structure -> 'focus
-            ; update: ('focus -> 'focus) -> 'structure -> 'structure
-            }
-            member this.set x = this.update (konst x)
-            static member ($) ({ get = leftGet; update = leftUpdate }, { get = rightGet; update = rightUpdate }) =
-                { get = leftGet >> rightGet; update = rightUpdate >> leftUpdate }
-
-        let identity = { get = id; update = id }
-
-    module State =
-        type t<'s, 'a> = { RunState : 's -> 's * 'a }
-
-        let return_ x = { RunState = fun s -> s, x }
-
-        let map mapping { RunState = runState } =
-            { RunState = runState >> function s, x -> s, mapping x }
-
-        let bind (binding: 'a -> t<'s, 'b>) { RunState = runState : 's -> 's * 'a} =
-            { RunState =
-                runState
-                >> function s, x -> (binding x).RunState s
-            }
-
-        let get = { RunState = fun s -> s, s }
-        let put x = { RunState = fun _ -> x, () }
-        let modify f = { RunState = fun s -> f s, () }
-        
-        type StateBuilder() =
-            member _.Bind(x, f) = bind f x
-            member _.Return x = return_ x
-            member _.ReturnFrom m = bind return_ m
-            member _.Zero() = return_ ()
-
-        let state = StateBuilder()
-
     module Map =
         let itemLens key =
-            { Lens.get = Map.tryFind key
-            ; Lens.update = Map.change key }
+            { get = Map.tryFind key
+            ; change = Map.change key }
 
     module Seq =
         let (|Cons|Nil|) xs =
@@ -90,11 +52,66 @@ module ProjectUtils =
 
     module Option =
         type OptionCEBuilder() =
-            member _.Bind(x, f) = Option.bind f x
+            member _.Bind(x, k) = Option.bind k x
             member _.Return x = Some x
+            member _.Zero() = None
 
         let option = OptionCEBuilder()
 
         let toResult (errorWhenNone: 'error) = function
             | Some x -> Ok x
             | None -> Error errorWhenNone
+
+    module State =
+        type t<'s, 'a> = { RunState : 's -> 's * 'a }
+
+        let return_ x = { RunState = fun s -> s, x }
+
+        let map mapping { RunState = runState } =
+            { RunState = runState >> function s, x -> s, mapping x }
+
+        let bind (binding: 'a -> t<'s, 'b>) { RunState = runState : 's -> 's * 'a} =
+            { RunState =
+                runState
+                >> function s, x -> (binding x).RunState s
+            }
+
+        let get = { RunState = fun s -> s, s }
+        let put x = { RunState = fun _ -> x, () }
+        let modify f = { RunState = fun s -> f s, () }
+        
+        type StateBuilder() =
+            member _.Bind(x, f) = bind f x
+            member _.Return x = return_ x
+            member _.ReturnFrom m = bind return_ m
+            member _.Zero() = return_ ()
+
+        let state = StateBuilder()
+
+    module Writer =
+        type Writer<'s, 'a> = { History: seq<'s>; Value: 'a }
+        let return_ x = { History = Seq.empty; Value = x }
+        let map mapping w = { History = Seq.empty; Value = mapping w.Value }
+        let bind binding { History = oldHistory; Value = oldValue } =
+            let { History = newHistory; Value = newValue } = binding oldValue
+            { History = Seq.append oldHistory newHistory; Value = newValue}
+
+        let write h = { History = Seq.singleton h; Value = () }
+        let writeMany hs = { History = hs; Value = () }
+
+        type WriterCEBuilder() =
+            member _.Bind(x, k) = bind k x
+            member _.Return x = return_ x
+            member _.Zero() = return_ ()
+
+            member _.Delay (f: unit -> Writer<'h, 't>) = f()
+            
+            member _.Combine(a: Writer<'h, 't>, b: Writer<'h, 'u>) =
+                a |> bind (fun _ -> b)
+
+            member this.For(xs: seq<'x>, k: 'x -> Writer<'h, 'k>) =
+                xs
+                |> Seq.map k
+                |> Seq.reduce (fun a b -> this.Combine(a, b))
+
+        let writer = WriterCEBuilder()

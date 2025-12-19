@@ -1,4 +1,5 @@
 ﻿namespace Rogue.Lib
+open ProjectUtils
 
 module RayPlatform =
     open ZeroElectric.Vinculum
@@ -60,42 +61,38 @@ module RayPlatform =
     module Colours =
         let rayWhite = Raylib.RAYWHITE
 
-    type IMsg<'model> = abstract member Update: 'model -> ('model * List<IMsg<'model>>)
-    type IViewable<'msg, 'model> = abstract member View: Unit -> List<IMsg<'model>>
-    type ISubscription<'msg, 'model> = abstract member OnTick: TickInfo -> List<IMsg<'model>>
+    type Msg<'model> = Msg of ('model -> Writer.Writer<Msg<'model>,'model>)
+    type Viewable<'model> = View of (Unit -> List<Msg<'model>>)
+    type Subscription<'model> = OnTick of (TickInfo -> List<Msg<'model>>)
     
     module PlatformMsgs =
-        let private asMsg f = { new IMsg<'msg> with member _.Update m = f m }
-
-        let quit =
-            { new IMsg<'msg> with
-                member _.Update _ =
-                    let () =
-                        Raylib.CloseWindow()
-                        printfn "GAME OVER"
-                    exit 0
-            }
+        let quit<'model>: Msg<'model> =
+            let () =
+                Raylib.CloseWindow()
+                printfn "GAME OVER"
+            exit 0
+            
 
         let changeWindowSize horz vert =
             let () = Raylib.SetWindowSize(horz, vert)
-            asMsg (fun model -> model, [])
+            Writer.return_ |> Msg
 
     module Viewables =
 
-        let compose (viewable1: IViewable<'msg, 'model>) (viewable2: IViewable<'msg, 'model>) =
-            { new IViewable<'msg, 'model> with member _.View() = viewable1.View() @ viewable2.View() }
+        let compose (View viewLeft) (View viewRight) =
+            fun () -> viewLeft() @ viewRight()
+            |> View
 
         let text (msg: string) (pos: IntVec) (fontSize: int) (colour: Color) =
-            { new IViewable<'msg, 'model> with
-                member _.View() = let () = Raylib.DrawText(msg, pos.X, pos.Y, fontSize, colour) in [] }
+            View (fun () -> let () = Raylib.DrawText(msg, pos.X, pos.Y, fontSize, colour) in [])
 
-        let zero = { new IViewable<'msg, 'model> with member _.View() = [] }
+        let zero = View (fun () -> [])
 
     let run
         (cfg: Config)
         (init: 'model)
-        (view: 'model -> IViewable<'msg, 'model>)
-        (subscription: 'model -> ISubscription<'msg, 'model>)
+        (view: 'model -> Viewable<'model>)
+        (subscription: 'model -> Subscription<'model>)
     
         = do
         Raylib.InitWindow (fst cfg.Resolution, snd cfg.Resolution, "a game to be played")
@@ -104,12 +101,12 @@ module RayPlatform =
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
 
-        let rec processMsgs (msgs: List<IMsg<'model>>) (state: 'model)=
+        let rec processMsgs (msgs: seq<Msg<'model>>) (state: 'model)=
             match msgs with
-            | nextMsg :: msgQueue ->
-                let state', intermediateMsgs = nextMsg.Update state
-                processMsgs (intermediateMsgs @ msgQueue) state'
-            | [] -> state
+            | Seq.Cons (Msg msg, msgQueue) ->
+                let { Writer.History = intermediateMsgs; Writer.Value = state' } = msg state
+                processMsgs (Seq.append intermediateMsgs msgQueue) state'
+            | Seq.Nil -> state
     
         let rec tick state =
             match Raylib.WindowShouldClose() with
@@ -121,8 +118,8 @@ module RayPlatform =
 
                 let state' =
                     state
-                    |> processMsgs (view state |> _.View())
-                    |> processMsgs (subscription state |> _.OnTick(TickInfo ()))
+                    |> processMsgs (view state |> function View render -> render())
+                    |> processMsgs (subscription state |> function OnTick f -> (f << TickInfo)() )
 
                 Raylib.EndDrawing()
 

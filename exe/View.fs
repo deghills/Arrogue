@@ -4,12 +4,11 @@ open Rogue.Lib
 open RayPlatform
 open Model
 
-
 let cellSize = 30
 
 let drawChar pos (chr: char) =
     let fontSize = (cellSize * 13) / 10
-    Viewables.text (string chr) pos fontSize Colours.rayWhite
+    RayPlatform.Viewables.text (string chr) pos fontSize Colours.rayWhite
 
 let view (state: Model) =
     if not (state.Creatures.ContainsKey EntityID.player)

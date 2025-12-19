@@ -6,7 +6,9 @@ module RandomPure =
     open ProjectUtils
 
     type seed = { Seed : int }
-    let intLens = { Lens.get = _.Seed; Lens.update = fun f r -> { r with Seed = f r.Seed }}
+    let intLens =
+        { Lens.get = _.Seed
+        ; Lens.change = fun f r -> { r with Seed = f r.Seed }}
 
     let xorShift =
         (  s' id (^^^) (flip (<<<) 13)

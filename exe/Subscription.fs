@@ -9,7 +9,25 @@ open Model
 
 
 let subscriptions (state: Model) =
-    { new RayPlatform.ISubscription<Msg, Model> with
+    fun (tick: TickInfo) ->
+        match state.Tiles.TryFind EntityID.player with
+        | Some { Pos = playerPos } ->
+            [ if tick[KeyboardKey.KEY_W].IsPressed then
+                yield Update.Creature.playerGenericAction (playerPos + IntVec.Vec (0, -1))
+
+            ; if tick[KeyboardKey.KEY_A].IsPressed then
+                yield Update.Creature.playerGenericAction (playerPos + IntVec.Vec (-1, 0))
+
+            ; if tick[KeyboardKey.KEY_S].IsPressed then
+                yield Update.Creature.playerGenericAction (playerPos + IntVec.Vec (0, 1))
+
+            ; if tick[KeyboardKey.KEY_D].IsPressed then
+                yield Update.Creature.playerGenericAction (playerPos + IntVec.Vec (1, 0))
+            ]
+        | None -> [ PlatformMsgs.quit ]
+    |> OnTick
+    
+    (*{ new RayPlatform.Subscription<Msg<Model>, Model> with
         member _.OnTick tick =
             match state.Tiles.TryFind EntityID.player with
             | Some { Pos = playerPos } ->
@@ -27,4 +45,4 @@ let subscriptions (state: Model) =
                 ]
             | None ->
                 [ PlatformMsgs.quit ]
-    }
+    }*)

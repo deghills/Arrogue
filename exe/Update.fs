@@ -9,7 +9,103 @@ open Model
 // i think I will dissolve the Msg type and just have them all be separate IMsg values.
 // only thing I need to be careful of is if losing mututal recursion when doing this matters
 // at the very least, maybe this will cut out some of the boilerplate and indentation depth
-type Msg =
+    
+module GamePieces =
+    let move entity newPos =
+        Model.gamePiecesL
+        $ Map.itemLens entity
+        <-* Option.map (fun gp -> { gp with Pos = newPos })
+        >> Writer.return_
+        |> Msg
+
+    let moveToward entity destination =
+        fun state ->
+            state
+            .> (Model.gamePiecesL $ Map.itemLens entity)
+            |> Option.toList
+            |> List.collect (fun gp -> Model.findPath gp.Pos destination state)
+            |> function
+                | [] -> Writer.return_ state
+                
+                | nextPos :: _ ->
+                    Writer.writer {
+                        do! Writer.write (move entity nextPos)
+                        return state
+                    }
+        |> Msg
+
+module Creature =
+    let attackCreature attackerID defenderID =
+        fun state ->
+            Option.option {
+                let! attacker = state .> (Model.creaturesL $ Map.itemLens attackerID)
+                return
+                    ( Model.creaturesL
+                    $ Map.itemLens defenderID
+                    <-* Option.bind (Creature.attack attacker)
+                    ) state
+            }
+            |> Option.defaultValue state
+            |> Writer.return_
+        |> Msg
+
+    let creatureAI creatureID =
+        fun state ->
+            if creatureID = EntityID.player
+            then Writer.return_ state
+            else
+
+            match
+                state .> (Model.gamePiecesL $ Map.itemLens creatureID),
+                state .> (Model.gamePiecesL $ Map.itemLens EntityID.player)
+            with
+            | Some { Pos = creaturePos }, Some { Pos = playerPos } ->
+                Writer.writer {
+                    do! if IntVec.NormChebyshev (playerPos - creaturePos) <= 1
+                        then Writer.write (attackCreature creatureID EntityID.player)
+                        else Writer.write (GamePieces.moveToward creatureID playerPos)
+
+                    return state
+                }
+            | _ -> Writer.return_ state
+        |> Msg
+
+    let environmentTurn =
+        fun (state: Model) ->
+            let x =
+                Writer.writer {
+                    for creatureID in Map.keys state.Creatures do
+                        do! Writer.write (creatureAI creatureID)
+
+                    return state
+                }
+            x
+        |> Msg
+
+    let playerGenericAction selectedTile =
+        fun state ->
+            match state .> (Model.gamePiecesL $ Map.itemLens EntityID.player) with
+            | None -> Writer.return_ state
+
+            | Some { Pos = playerPos } ->
+                let targetIsInRange = IntVec.NormChebyshev (selectedTile - playerPos) <= 1
+                Writer.writer {
+                    match Map.tryFindKey (fun _ c -> c.Pos = selectedTile) state.Tiles with
+                    | Some targetID when targetIsInRange ->
+                        do! Writer.write (attackCreature EntityID.player targetID)
+                        do! Writer.write environmentTurn
+                    | _ ->
+                        match Model.findPath playerPos selectedTile state with
+                        | [] -> ()
+                        | nextPos :: _ ->
+                            do! Writer.write (GamePieces.move EntityID.player nextPos)
+                            do! Writer.write environmentTurn
+
+                    return state
+                }
+        |> Msg
+
+(*type Msg =
     | GenericAction of EntityID * IntVec
     | AttackCreature of EntityID * EntityID
     | MoveToTile of EntityID * IntVec
@@ -22,70 +118,6 @@ type Msg =
             let pass = state, []
 
             match this with
-            | GenericAction (creatureID, targetPos) ->
-                Map.tryFind creatureID state.Tiles
-                |> Option.toResult pass
-                |> Result.bind
-                    (fun creature ->
-                        let targetIsInRange = IntVec.NormChebyshev (targetPos - creature.Pos) <= 1
-                        
-                        match Map.tryFindKey (fun _ c -> c.Pos = targetPos) state.Tiles with
-                        | Some targetID when targetIsInRange ->
-                            Ok (state, [AttackCreature (creatureID, targetID) :> IMsg<Model>])
-                        
-                        | _ ->
-                            Error (state, [MoveTowardTile (creatureID, targetPos) :> IMsg<Model>])
-                    )
-                |> function Ok result | Error result -> result
+            | 
 
-            | MoveToTile (creatureID, newPos) ->
-                let spaceIsOccupied =
-                    Map.exists (konst (_.Pos >> (=) newPos)) state.Tiles
-                    ||
-                    not (Set.contains newPos state.Map)
-
-                if spaceIsOccupied then
-                    pass
-                else    
-                    (Model.tilesLens $ Map.itemLens creatureID).update
-                        (Option.map (fun creature -> { creature with Pos = newPos } ))
-                        state
-                    |> appendMsgs [ if creatureID = EntityID.player then yield EnvironmentTurn ]
-
-            | MoveTowardTile (entityID, destination) ->
-                match Map.tryFind entityID state.Tiles with
-                | Some tile ->
-                    match Model.findPath tile.Pos destination state with
-                    | nextPos :: _ -> state, [MoveToTile (entityID, nextPos)]
-                    | [] -> state, []
-                | None ->
-                    pass
-
-            | AttackCreature (attackerID, targetID) ->
-                Map.tryFind attackerID state.Creatures
-                |> Option.map
-                    ( Creature.attack
-                    >> Option.bind
-                    >> flip (creaturesLens $ Map.itemLens targetID).update state
-                    >> appendMsgs [ if attackerID = EntityID.player then yield EnvironmentTurn :> IMsg<Model> ]
-                    )
-                |> Option.defaultValue
-                    pass
-
-            | EnvironmentTurn ->
-                match Map.tryFind EntityID.player state.Tiles with
-                | None -> state, [ quit ]
-
-                | Some player ->
-                    ( state
-                    , List.choose
-                        (function
-                        | EntityID.player, _ ->
-                            None
-                        | npcID, _ ->
-                            GenericAction (npcID, player.Pos)
-                            :> IMsg<Model>
-                            |> Some
-                        )
-                        (Map.toList state.Creatures)
-                    )
+            | *)

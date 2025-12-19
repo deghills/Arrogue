@@ -1,34 +1,23 @@
-﻿namespace Rogue.Lib
+namespace Rogue.Lib
 
-open ProjectUtils
-
-type Snapshot<'s, 'a> =
-    { View: 'a
-    ; Update: ('a -> 'a) -> 's
+type Lens<'structure, 'focus> =
+    { get: 'structure -> 'focus
+    ; change: ('focus -> 'focus) -> 'structure -> 'structure
     }
+    member this.set x = this.change (fun _ -> x)
 
-module Lens =
-    let compose (outer: 'a -> Snapshot<'a, 'b>, inner: 'b -> Snapshot<'b, 'c>) a =
-        let outerView = outer >> _.View
-        let innerView = inner >> _.View
-        let outerUpdate = outer >> _.Update
-        let innerUpdate = inner >> _.Update
+    static member ( $ ) ({ get = leftGet; change = leftChange }, { get = rightGet; change = rightChange }) =
+        { get = leftGet >> rightGet; change = rightChange >> leftChange}
 
-        let finalView = outerView >> innerView
-        let finalUpdate = flip innerUpdate >> flip outerUpdate
-        { View = finalView a; Update = finalUpdate}
+    static member ( .> ) (a, b) =
+        b.get a
 
-(*
-[<Struct>]
-type Lens<'s, 'a> =
-    { Look: 's -> 'a
-    ; Change: ('a -> 'a) -> 's -> 's
-    }
-    member this.Set a = this.Change (konst a)
-    
-    static member Compose (outer: Lens<'a, 'b>) (inner: Lens<'b, 'c>) =
-        { Look = outer.Look >> inner.Look
-        ; Change = inner.Change >> outer.Change
-        }
+    static member ( <-- ) (l: Lens<'a, 'b>, v) = l.set v
 
-        *)
+    static member ( <-* ) (l, f) = l.change f
+
+    (*static member ( <?* ) (l: Lens<'structure, option<'t>>, f: 't -> 't) =
+        l <-* (Option.map f)*)
+
+    static member ( <?- ) (l: Lens<'structure, option<'t>>, t: 't) =
+        l.set (Some t)
