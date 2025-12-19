@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Lens.fs" />
+    <Compile Include="Accessor.fs" />
     <Compile Include="ProjectUtils.fs" />
     <Compile Include="IntVec.fs" />
     <Compile Include="RayPlatform.fs" />
