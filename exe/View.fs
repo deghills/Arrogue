@@ -11,7 +11,7 @@ let drawChar pos (chr: char) =
     RayPlatform.Viewables.text (string chr) pos fontSize Colours.rayWhite
 
 let view (state: Model) =
-    if not (state.Creatures.ContainsKey EntityID.player)
+    if not (state.Entities.Get.ContainsKey EntityID.player)
     
     then
         Viewables.text
@@ -24,11 +24,11 @@ let view (state: Model) =
         Seq.fold
             (fun acc mapTilePos -> Map.add mapTilePos '-' acc)
             Map.empty
-            state.Map
+            state.Map.Get
         |> fun mapTiles ->
             Seq.fold
-                (fun acc (_, tile) -> Map.add tile.Pos tile.Token acc)
+                (fun acc (_, (tile: IBehaviour)) -> Map.add tile.Position.Get tile.Token.Get acc)
                 mapTiles
-                (Map.toSeq state.Tiles)
+                (Map.toSeq state.Entities.Get)
         |> Seq.map (function KeyValue (pos, chr) -> drawChar (pos * cellSize) chr)
         |> Seq.fold (Viewables.compose) RayPlatform.Viewables.zero

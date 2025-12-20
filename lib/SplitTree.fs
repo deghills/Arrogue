@@ -8,7 +8,7 @@ module SplitTree =
     type t<'bisector, 't> =
         | Leaf of 't
         | Branch of t<'bisector, 't> * 'bisector * t<'bisector, 't>
-        interface seq<'t> with
+        (*interface seq<'t> with
             member this.GetEnumerator (): System.Collections.Generic.IEnumerator<'t> = 
                 let rec aux acc = function
                     | Seq.Nil -> acc
@@ -22,7 +22,7 @@ module SplitTree =
                 in aux Seq.empty (Seq.singleton this) |> _.GetEnumerator()
 
             member this.GetEnumerator (): System.Collections.IEnumerator = 
-                this :> seq<'t> |> _.GetEnumerator()
+                this :> seq<'t> |> _.GetEnumerator()*)
 
     let map mapping =
         let rec aux = function

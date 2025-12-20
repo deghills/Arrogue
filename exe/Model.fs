@@ -2,66 +2,59 @@
 
 open Rogue.Lib
 open ProjectUtils
-open Creature
+open RayPlatform
+open RandomPure
+open Accessor
 
 type EntityID =
     | player = -1
 
-type ComponentStore<'component_> = Map<EntityID, 'component_>
-module ComponentStore =
-    let empty : ComponentStore<'t> = Map.empty
-
-type GamePiece =
-    { Pos: IntVec
-    ; Token: char
-    }
+type IBehaviour =
+    abstract member Position : Accessor<IBehaviour, IntVec>
+    abstract member Token : Accessor<IBehaviour, char>
 
 type Model =
-    { Map: Set<IntVec>
-    ; Seed: RandomPure.seed
-
-    //components
-    ; Tiles: ComponentStore<GamePiece>
-    ; Creatures: ComponentStore<Creature>
+    { _map: Set<IntVec>
+    ; _seed: RandomPure.RandomSeed
+    ; _entities : Map<EntityID, IBehaviour>
     }
+    member this.Map =
+        { Get = this._map
+        ; Change = fun f -> { this with _map = f this._map }}
+    member this.Seed =
+        { Get = this._seed
+        ; Change = fun f -> { this with _seed = f this._seed }}
+    member this.Entities =
+        { Get = this._entities
+        ; Change = fun f -> { this with _entities = f this._entities }}
 
-module Component =
-    let tile entityID =
-        Map.itemLens entityID
+//move toward a GUID model where entities are stored in an array and carry their own EntityID, allowing find-and-replace semantics
+//GUID also allows functions parameters to be refined to IBehaviour subtypes, as passing identifiers is no longer required for model updates
+//add an in-game logging system, allowing notifications for player and developer information
 
 let empty =
-    { Tiles = ComponentStore.empty
-    ; Creatures = ComponentStore.empty
-    ; Map = Set.empty
-    ; Seed = { Seed = 69 } }
-
-let gamePiecesL =
-    { Lens.get = fun model -> model.Tiles
-    ; Lens.change = fun endomorphism model -> { model with Tiles = endomorphism model.Tiles}
+    { _entities = Map.empty
+    ; _map = Set.empty
+    ; _seed = Seed 69
     }
 
-let creaturesL =
-    { Lens.get = _.Creatures
-    ; Lens.change = fun endomorphism model -> { model with Creatures = endomorphism model.Creatures }
-    }
+let destroyEntity entityID =
+    fun (model: Model) ->
+        model
+        |> (_.Entities $ Map.itemLens entityID) <-- None
+        |> Writer.return_
+    |> Msg
 
-let randomL =
-    { Lens.get = _.Seed
-    ; Lens.change = fun endomorphism model -> { model with Seed = endomorphism model.Seed }
-    }
-
-let mapL =
-    { Lens.get = _.Map
-    ; Lens.change = fun endomorphism model -> { model with Map = endomorphism model.Map }
-    }
-
-let spawnCreature entityID gamePiece creature =
-    (creaturesL $ Map.itemLens entityID).set (Some creature)
-    >> (gamePiecesL $ Map.itemLens entityID).set (Some gamePiece)
+let spawnEntity entityID (behaviour: 'behaviour when 'behaviour :> IBehaviour) =
+    fun (model: Model) ->
+        model
+        |> (_.Entities $ Map.itemLens entityID) <-- Some (behaviour :> IBehaviour)
+        |> Writer.return_
+    |> Msg
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
-let findPath (start: IntVec) (finish: IntVec) model =
-    let freeTiles = Set model.Map
+let findPath (start: IntVec) (finish: IntVec) (model: Model) =
+    let freeTiles = Set model.Map.Get
             
     let getNeighbours (p: IntVec) =
         Set.intersect
@@ -86,15 +79,16 @@ let findPath (start: IntVec) (finish: IntVec) model =
                 acc
             | None ->
                 [] //no path exists
-        in
+
         match checkPath [] finish with
         | [] ->
             match
                 priorityQueue
                 |> Map.toSeq
-                (* technically chebyshev norm says that ||(x, 0)|| = ||(x, x)||, which can lead to unnatural looking pathing
-                ** even though it's still technically an optimal path under the chebyshev norm.
-                ** for multiple optimal paths, tie-breaking with the manhattan distance here
+                (* Technically the Chebyshev norm says that ||(x, 0)|| = ||(x, x)||,
+                ** which can lead to unnatural looking pathing even though
+                ** it's still technically an optimal path under the Chebyshev norm.
+                ** For multiple optimal paths, tie-breaking with the Manhattan distance here
                 ** will choose the most natural looking one *)
                 |> Seq.tryMinBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
             with
@@ -128,17 +122,16 @@ let findPath (start: IntVec) (finish: IntVec) model =
                     neighbours
                 |> Map.remove currentTile )
 
-        | path ->
-            path
+        | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
-let genNewMap model =
+let genNewMap (model: Model) =
     BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
-    |> _.RunState(model.Seed)
+    |> _.RunState(model.Seed.Get)
     |> fun (newSeed, newMap) ->
         model
-        |> randomL.change (konst newSeed)
-        |> mapL.change (konst newMap)
+        |> _.Seed <-- newSeed
+        |> _.Map <-- newMap
 
 (*let spawnCreaturesAtRandom model creatures =
     let rand = RandomPure.Rand(randomLens)

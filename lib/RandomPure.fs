@@ -5,10 +5,7 @@ module RandomPure =
     open System
     open ProjectUtils
 
-    type seed = { Seed : int }
-    let intLens =
-        { Lens.get = _.Seed
-        ; Lens.change = fun f r -> { r with Seed = f r.Seed }}
+    type RandomSeed = Seed of int
 
     let xorShift =
         (  s' id (^^^) (flip (<<<) 13)
@@ -17,10 +14,8 @@ module RandomPure =
         )
 
     let next =
-        { State.RunState =
-            fun { Seed = seed } ->
-                { Seed = xorShift seed}, seed
-        }
+        { State.RunState = function
+            Seed seed -> Seed (xorShift seed), seed }
 
     let nextInRange minBounds maxBounds =
         if minBounds > maxBounds then raise (ArgumentOutOfRangeException($"{minBounds} {maxBounds}"))

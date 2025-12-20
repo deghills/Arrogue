@@ -1,13 +1,12 @@
 namespace Rogue.Lib
 
-
-
 module Accessor =
     type Accessor<'structure, 'focus> =
         { Get: 'focus
         ; Change: ('focus -> 'focus) -> 'structure
         }
         member this.Set x = this.Change (fun _ -> x)
+        //static member ( !! ) { Get = get } = get
 
     let ( $ ) (leftAccess: 'a -> Accessor<'a, 'b>) (rightAccess: 'b -> Accessor<'b, 'c>) (a: 'a) : Accessor<'a, 'c> =
         let l1 = leftAccess a

@@ -1,6 +1,7 @@
 ﻿namespace Rogue.Lib
 
 open System
+open Accessor
 
 module ProjectUtils =
     let flip f a b = f b a
@@ -20,9 +21,9 @@ module ProjectUtils =
             this.Next() > 0
 
     module Map =
-        let itemLens key =
-            { get = Map.tryFind key
-            ; change = Map.change key }
+        let itemLens key map =
+            { Get = Map.tryFind key map
+            ; Change = fun f -> Map.change key f map }
 
     module Seq =
         let (|Cons|Nil|) xs =
