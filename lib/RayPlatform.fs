@@ -126,8 +126,8 @@ module RayPlatform =
                 update model (rayTick model)
 
             | (Msg nextMsg) :: remaining ->
-                let { Writer.History = intermediate; Writer.Value = model' } = nextMsg model
+                let (Writer.Writer (intermediate, model')) = nextMsg model
                 update model' (intermediate @ remaining)
 
-        let { Writer.History = initialMsgs; Writer.Value = initialModel } = init
+        let (Writer.Writer (initialMsgs, initialModel)) = init
         update initialModel (List.ofSeq initialMsgs)

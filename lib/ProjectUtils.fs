@@ -95,15 +95,18 @@ module ProjectUtils =
         let state = StateBuilder()
 
     module Writer =
-        type Writer<'s, 'a> = { History: List<'s>; Value: 'a }
-        let return_ x = { History = []; Value = x }
-        let map mapping w = { History = []; Value = mapping w.Value }
-        let bind binding { History = oldHistory; Value = oldValue } =
-            let { History = newHistory; Value = newValue } = binding oldValue
-            { History = oldHistory @ newHistory; Value = newValue}
+        type Writer<'s, 'a> =
+            | Writer of (List<'s> * 'a)
 
-        let write h = { History = [h]; Value = () }
-        let writeMany hs = { History = hs; Value = () }
+        let return_ x = Writer ([], x)
+        let map mapping = function Writer (history, value) -> Writer (history, mapping value)
+        let bind binding = function
+            Writer (oldHistory, oldValue) ->
+                match binding oldValue with
+                Writer (newHistory, newValue) -> Writer (oldHistory @ newHistory, newValue)
+
+        let write h = Writer ([h], ())
+        let writeMany hs = Writer (hs, ())
 
         type WriterCEBuilder() =
             member _.Bind(x, k) = bind k x
