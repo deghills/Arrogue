@@ -15,7 +15,7 @@ let view (state: Model) =
     
     then
         Viewables.text
-            "the player has died!\npress any key to close window"
+            "the player has died!"
             (Vec (0, 0))
             20
             Colours.rayWhite

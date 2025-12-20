@@ -95,14 +95,14 @@ module ProjectUtils =
         let state = StateBuilder()
 
     module Writer =
-        type Writer<'s, 'a> = { History: seq<'s>; Value: 'a }
-        let return_ x = { History = Seq.empty; Value = x }
-        let map mapping w = { History = Seq.empty; Value = mapping w.Value }
+        type Writer<'s, 'a> = { History: List<'s>; Value: 'a }
+        let return_ x = { History = []; Value = x }
+        let map mapping w = { History = []; Value = mapping w.Value }
         let bind binding { History = oldHistory; Value = oldValue } =
             let { History = newHistory; Value = newValue } = binding oldValue
-            { History = Seq.append oldHistory newHistory; Value = newValue}
+            { History = oldHistory @ newHistory; Value = newValue}
 
-        let write h = { History = Seq.singleton h; Value = () }
+        let write h = { History = [h]; Value = () }
         let writeMany hs = { History = hs; Value = () }
 
         type WriterCEBuilder() =

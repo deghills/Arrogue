@@ -44,6 +44,7 @@ module RayPlatform =
     type Config =
         { Resolution: int*int
         ; FPS: int
+        ; ShowFPS: bool
         ; TextSize: int
         ; BackgroundColour: Color
         ; HideCursor: bool
@@ -51,7 +52,8 @@ module RayPlatform =
         } with
         static member Default =
             { Resolution = 1920, 1080
-            ; FPS = 120
+            ; FPS = -1
+            ; ShowFPS = true
             ; TextSize = 16
             ; BackgroundColour = Raylib.BLACK
             ; HideCursor = false
@@ -99,28 +101,33 @@ module RayPlatform =
         RayGui.GuiSetStyle (int GuiControl.DEFAULT, int GuiDefaultProperty.TEXT_SIZE, cfg.TextSize)
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
-
-        let rec processMsgs (msgs: seq<Msg<'model>>) (state: 'model) =
-            match msgs with
-            | Seq.Cons (Msg msg, msgQueue) ->
-                let { Writer.History = intermediateMsgs; Writer.Value = state' } = msg state
-                processMsgs (Seq.append intermediateMsgs msgQueue) state'
-            | Seq.Nil -> state
     
-        let rec tick state =
-            match Raylib.WindowShouldClose() with
-            | true -> Raylib.CloseWindow(); exit 0
+        let rayTick model =
+            [ Raylib.BeginDrawing()
+            ; Raylib.ClearBackground cfg.BackgroundColour
+            ; if cfg.ShowFPS then Raylib.DrawFPS(0, 0)
 
-            | false ->
-                Raylib.BeginDrawing()
-                Raylib.ClearBackground cfg.BackgroundColour
+            ; yield!
+                view model
+                |> function View render -> render()
 
-                let state' =
-                    state
-                    |> processMsgs (view state |> function View render -> render())
-                    |> processMsgs (subscription state |> function OnTick f -> (f << TickInfo)() )
+            ; yield!
+                subscription model
+                |> function OnTick onTick -> TickInfo() |> onTick
 
-                Raylib.EndDrawing()
+            ; Raylib.EndDrawing()
+            ]
 
-                tick state'
-        let { Writer.History = initialMsgs; Writer.Value = initialModel } = init in initialModel |> processMsgs initialMsgs |> tick
+        let rec update model =
+            function
+            | [] when Raylib.WindowShouldClose() -> Raylib.CloseWindow(); exit 0
+
+            | [] ->
+                update model (rayTick model)
+
+            | (Msg nextMsg) :: remaining ->
+                let { Writer.History = intermediate; Writer.Value = model' } = nextMsg model
+                update model' (intermediate @ remaining)
+
+        let { Writer.History = initialMsgs; Writer.Value = initialModel } = init
+        update initialModel (List.ofSeq initialMsgs)
