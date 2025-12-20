@@ -130,4 +130,4 @@ module RayPlatform =
                 update model' (intermediate @ remaining)
 
         let (Writer.Writer (initialMsgs, initialModel)) = init
-        update initialModel (List.ofSeq initialMsgs)
+        update initialModel initialMsgs
