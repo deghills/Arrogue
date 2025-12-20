@@ -7,7 +7,7 @@ open Model
 
 let subscriptions (state: Model) =
     fun (tick: TickInfo) ->
-        match state.Entities.Get.TryFind EntityID.player with
+        match state.FindEntity EntityID.player with
         | Some player ->
             [ if tick[KeyboardKey.KEY_W].IsPressed then
                 yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, -1))
@@ -21,5 +21,5 @@ let subscriptions (state: Model) =
             ; if tick[KeyboardKey.KEY_D].IsPressed then
                 yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (1, 0))
             ]
-        | None -> [ PlatformMsgs.quit ]
+        | None -> []//[ PlatformMsgs.quit ]
     |> OnTick

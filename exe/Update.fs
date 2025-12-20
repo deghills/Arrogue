@@ -32,11 +32,25 @@ let moveToward entityID destination =
 
 type ICharacterSheet = interface
     inherit IBehaviour
-    abstract member Health : Accessor<ICharacterSheet, int>
+    //abstract member Name : Accessor<ICharacterSheet, string>
     abstract member Strength : Accessor<ICharacterSheet, int>
+    abstract member Health : Accessor<ICharacterSheet, int>
     static member Qualify: obj -> option<ICharacterSheet> = function
         :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
+
+type Creature (strength, health, token, position) =
+    interface ICharacterSheet with
+        member _.Strength =
+            { Accessor.Get = strength; Accessor.Change = fun f -> Creature (f strength, health, token, position) }
+        member _.Health =
+            { Accessor.Get = health; Accessor.Change = fun f -> Creature (strength, f health, token, position) }
+        member _.Token =
+            { Accessor.Get = token; Accessor.Change = fun f -> Creature (strength, health, f token, position) }
+        member _.Position =
+            { Accessor.Get = position; Accessor.Change = fun f -> Creature (strength, health, token, f position) }
+
+    new() = Creature (11, 100, 'g', IntVec.Zero)
 
 let hurtCreature damage creatureID =
     fun (model: Model) ->
@@ -116,4 +130,3 @@ let playerGenericAction selectedTile =
                 return model
             }
     |> Msg
-

@@ -25,6 +25,11 @@ module ProjectUtils =
             { Get = Map.tryFind key map
             ; Change = fun f -> Map.change key f map }
 
+        let fromKeyProjection (projection: 't -> 'key) (values: seq<'t>) =
+            values
+            |> Seq.map (fun value -> projection value, value)
+            |> Map
+
     module Seq =
         let (|Cons|Nil|) xs =
             match Seq.tryHead xs with

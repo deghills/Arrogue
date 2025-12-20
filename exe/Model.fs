@@ -1,56 +1,90 @@
 ﻿module Model
 
 open Rogue.Lib
-open ProjectUtils
 open RayPlatform
-open RandomPure
+open ProjectUtils
 open Accessor
 
 type EntityID =
-    | player = -1
+    | player = -69
 
 type IBehaviour =
-    abstract member Position : Accessor<IBehaviour, IntVec>
-    abstract member Token : Accessor<IBehaviour, char>
+    abstract member Position: Accessor<IBehaviour, IntVec>
+    abstract member Token: Accessor<IBehaviour, char>
 
 type Model =
-    { _map: Set<IntVec>
-    ; _seed: RandomPure.RandomSeed
-    ; _entities : Map<EntityID, IBehaviour>
-    }
+    val private _map: Set<IntVec>
+    val private _seed: RandomPure.RandomSeed
+    val private _entities: Map<EntityID, IBehaviour>
+    private new (map, entitites, seed) = { _map = map; _seed = seed; _entities = entitites }
+
     member this.Map =
         { Get = this._map
-        ; Change = fun f -> { this with _map = f this._map }}
-    member this.Seed =
-        { Get = this._seed
-        ; Change = fun f -> { this with _seed = f this._seed }}
+        ; Change = fun f -> Model (f this._map, this._entities, this._seed) }
     member this.Entities =
         { Get = this._entities
-        ; Change = fun f -> { this with _entities = f this._entities }}
+        ; Change = fun f -> Model (this._map, f this._entities, this._seed) }
+    member this.Seed =
+        { Get = this._seed
+        ; Change = fun f -> Model (this._map, this._entities, f this._seed) }
+
+    member this.FindEntity (entityID: EntityID) =
+        this._entities.TryFind entityID
+
+    member this.NextID = Seq.find (not << this._entities.ContainsKey) (Seq.initInfinite enum<EntityID>)
+
+    /// If an entity with this ID already exists, will produce a ModelLog error message instead
+    static member SpawnEntity (entity: IBehaviour, ?withID: EntityID) =
+        fun (model: Model) ->
+            let entityID = defaultArg withID model.NextID
+
+            match model._entities.TryFind entityID with
+            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed)
+            | Some _ -> failwith "make this log the error when you make the logging system"
+            |> Writer.return_
+        |> Msg
+
+    static member SpawnEntityOnRandomTile (entity: IBehaviour, ?withID: EntityID) =
+        fun (model: Model) ->
+            let entityID = defaultArg withID model.NextID
+            RandomPure.randomItem
+                (Set.difference
+                    model._map
+                    (model._entities.Values |> Seq.map _.Position.Get |> Set)
+                )
+            |> _.RunState(model._seed)
+            |> function
+                newSeed, newPosition ->
+                    Writer.writer {
+                        do! Model.SpawnEntity (entity.Position <-- newPosition, entityID) |> Writer.write
+                        return model.Seed <-- newSeed
+                    }
+        |> Msg
+
+    static member DestroyEntity (entityID: EntityID) =
+        fun (model: Model) ->
+            match model._entities.TryFind entityID with
+            | None -> failwith "make this log the error when you make the logging system"
+            | Some _ -> Model (model._map, model._entities.Remove entityID, model._seed)
+            |> Writer.return_
+        |> Msg
+
+    static member GenNewMap =
+        fun (model: Model) ->
+            BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
+            |> _.RunState(model.Seed.Get)
+            |> fun (newSeed, newMap) ->
+                model
+                |> _.Seed <-- newSeed
+                |> _.Map <-- newMap
+            |> Writer.return_
+        |> Msg
+
+    static member Empty = Model(Set.empty, Map.empty, RandomPure.Seed 69)
 
 //move toward a GUID model where entities are stored in an array and carry their own EntityID, allowing find-and-replace semantics
 //GUID also allows functions parameters to be refined to IBehaviour subtypes, as passing identifiers is no longer required for model updates
 //add an in-game logging system, allowing notifications for player and developer information
-
-let empty =
-    { _entities = Map.empty
-    ; _map = Set.empty
-    ; _seed = Seed 69
-    }
-
-let destroyEntity entityID =
-    fun (model: Model) ->
-        model
-        |> (_.Entities $ Map.itemLens entityID) <-- None
-        |> Writer.return_
-    |> Msg
-
-let spawnEntity entityID (behaviour: 'behaviour when 'behaviour :> IBehaviour) =
-    fun (model: Model) ->
-        model
-        |> (_.Entities $ Map.itemLens entityID) <-- Some (behaviour :> IBehaviour)
-        |> Writer.return_
-    |> Msg
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =
@@ -124,14 +158,6 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
 
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
-
-let genNewMap (model: Model) =
-    BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
-    |> _.RunState(model.Seed.Get)
-    |> fun (newSeed, newMap) ->
-        model
-        |> _.Seed <-- newSeed
-        |> _.Map <-- newMap
 
 (*let spawnCreaturesAtRandom model creatures =
     let rand = RandomPure.Rand(randomLens)

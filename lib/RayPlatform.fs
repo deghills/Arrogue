@@ -71,7 +71,6 @@ module RayPlatform =
                 Raylib.CloseWindow()
                 printfn "GAME OVER"
             exit 0
-            
 
         let changeWindowSize horz vert =
             let () = Raylib.SetWindowSize(horz, vert)
@@ -90,7 +89,7 @@ module RayPlatform =
 
     let run
         (cfg: Config)
-        (init: 'model)
+        (init: Writer.Writer<Msg<'model>, 'model>)
         (view: 'model -> Viewable<'model>)
         (subscription: 'model -> Subscription<'model>)
     
@@ -101,7 +100,7 @@ module RayPlatform =
         if cfg.HideCursor then Raylib.HideCursor()
         if cfg.Fullscreen then Raylib.ToggleFullscreen()
 
-        let rec processMsgs (msgs: seq<Msg<'model>>) (state: 'model)=
+        let rec processMsgs (msgs: seq<Msg<'model>>) (state: 'model) =
             match msgs with
             | Seq.Cons (Msg msg, msgQueue) ->
                 let { Writer.History = intermediateMsgs; Writer.Value = state' } = msg state
@@ -124,5 +123,4 @@ module RayPlatform =
                 Raylib.EndDrawing()
 
                 tick state'
-
-        in tick init
+        let { Writer.History = initialMsgs; Writer.Value = initialModel } = init in initialModel |> processMsgs initialMsgs |> tick
