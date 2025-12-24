@@ -9,8 +9,9 @@ type EntityID =
     | player = -69
 
 type IBehaviour =
-    abstract member Position: Accessor<IBehaviour, IntVec>
+    abstract member Name: Accessor<IBehaviour, string>
     abstract member Token: Accessor<IBehaviour, char>
+    abstract member Position: Accessor<IBehaviour, IntVec>
 
 type Model =
     { _map: Set<IntVec>

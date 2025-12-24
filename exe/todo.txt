@@ -1,3 +1,4 @@
+-Entity names
 -Items
 -Containers
 -Click behaviour

@@ -15,18 +15,19 @@ type ICharacterSheet = interface
         :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
 
-type Creature (strength, health, token, position) = class
+type Creature (name, strength, health, token, ?position) = class
+    let pos = defaultArg position IntVec.Zero
     interface ICharacterSheet with
+        member _.Name =
+            { Accessor.Get = name; Accessor.Change = fun f -> Creature (f name, strength, health, token, pos) }
         member _.Strength =
-            { Accessor.Get = strength; Accessor.Change = fun f -> Creature (f strength, health, token, position) }
+            { Accessor.Get = strength; Accessor.Change = fun f -> Creature (name, f strength, health, token, pos) }
         member _.Health =
-            { Accessor.Get = health; Accessor.Change = fun f -> Creature (strength, f health, token, position) }
+            { Accessor.Get = health; Accessor.Change = fun f -> Creature (name, strength, f health, token, pos) }
         member _.Token =
-            { Accessor.Get = token; Accessor.Change = fun f -> Creature (strength, health, f token, position) }
+            { Accessor.Get = token; Accessor.Change = fun f -> Creature (name, strength, health, f token, pos) }
         member _.Position =
-            { Accessor.Get = position; Accessor.Change = fun f -> Creature (strength, health, token, f position) }
-
-    new() = Creature (11, 100, 'g', IntVec.Zero)
+            { Accessor.Get = pos; Accessor.Change = fun f -> Creature (name, strength, health, token, f pos) }
 end
 
 let hurtCreature damage creatureID =
@@ -36,10 +37,10 @@ let hurtCreature damage creatureID =
             match targetAccessor.Get with
             | Some (:? ICharacterSheet as target) ->
                 let target' = target.Health <-* (fun health -> health - damage)
-                do! Model.PutLog $"{creatureID} has taken {damage} damage" |> Writer.write
+                do! Model.PutLog $"{target.Name.Get} has taken {damage} damage" |> Writer.write
 
                 if target'.Health.Get <= 0 then
-                    do! Model.PutLog $"{creatureID} has died" |> Writer.write
+                    do! Model.PutLog $"{target.Name.Get} has died" |> Writer.write
                     return targetAccessor <-- None
 
                 else
