@@ -8,9 +8,11 @@ open RayPlatform
 
 let init =
     Writer.writer {
-        do! Writer.write Model.GenNewMap
+        do! Model.GenNewMap |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Update.Creature (11, 100, '@', IntVec.Zero), EntityID.player) |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Update.Creature (10, 100, 'g', IntVec.Zero)) |> Writer.write
+        do! Model.PutLog "hey guys" |> Writer.write
+        do! Model.PutLog "can you hear me?" |> Writer.write
         return Model.Empty
     }
 

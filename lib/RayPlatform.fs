@@ -25,22 +25,6 @@ module RayPlatform =
         member this.IsReleased = this.getReleased()
         member this.IsDown = this.getDown()
 
-    type TickInfo internal () =
-        let pressedKeys =
-            let rec aux acc =
-                match Raylib.GetKeyPressed() with
-                | 0 ->
-                    acc
-                | i ->
-                    aux (enum<KeyboardKey> i :: acc)
-            in aux []
-        member _.Frametime = Raylib.GetFrameTime()
-        member _.MouseDelta = Raylib.GetMouseDelta()
-        member _.MousePosition = Raylib.GetMousePosition()
-        member _.Item(k: KeyboardKey) = ButtonInfo k
-        member _.Item(m: MouseButton) = ButtonInfo m
-        member _.PressedKeys = pressedKeys
-
     type Config =
         { Resolution: int*int
         ; FPS: int
@@ -60,14 +44,40 @@ module RayPlatform =
             ; Fullscreen = true
             }
 
+    type FrameContext internal () =
+        let pressedKeys =
+            let rec aux acc =
+                match Raylib.GetKeyPressed() with
+                0 -> acc | i -> aux (enum<KeyboardKey> i :: acc)
+            in aux []
+
+        member _.Frametime = Raylib.GetFrameTime()
+        member _.MouseDelta = Raylib.GetMouseDelta()
+        member _.MousePosition = Raylib.GetMousePosition()
+        member _.PressedKeys = pressedKeys
+        member _.RenderHeight = Raylib.GetRenderHeight()
+        member _.RenderWidth = Raylib.GetRenderWidth()
+
+        member _.Item(k: KeyboardKey) = ButtonInfo k
+        member _.Item(m: MouseButton) = ButtonInfo m
+
+    type Colour = ZeroElectric.Vinculum.Color
     module Colours =
         let rayWhite = Raylib.RAYWHITE
+        let green = Raylib.GREEN
+        let beige = Raylib.BEIGE
+        let darkGrey = Raylib.DARKGRAY
+        let black = Raylib.BLACK
 
     type Msg<'model> = Msg of ('model -> Writer.Writer<Msg<'model>,'model>)
-    type Viewable<'model> = View of (Unit -> List<Msg<'model>>)
-    type Subscription<'model> = OnTick of (TickInfo -> List<Msg<'model>>)
+
+    type IViewable<'model> = interface
+        abstract member View : unit -> List<Msg<'model>>
+        static member Compose (leftView: #IViewable<'model>) (rightView: #IViewable<'model>) =
+            { new IViewable<'model> with member _.View() = leftView.View() @ rightView.View() }
+    end
     
-    module PlatformMsgs =
+    module Msgs =
         let quit<'model>: Msg<'model> =
             let () =
                 Raylib.CloseWindow()
@@ -79,21 +89,53 @@ module RayPlatform =
             Writer.return_ |> Msg
 
     module Viewables =
+        let empty<'model> = { new IViewable<'model> with member _.View() = [] }
 
-        let compose (View viewLeft) (View viewRight) =
-            fun () -> viewLeft() @ viewRight()
-            |> View
+        type Text<'model> (msg: string, posX: int, posY: int, fontSize: int, ?colour: Color) = class
+            new (msg: string, pos: IntVec, fontSize: int, ?colour: Color) =
+                Text (msg, pos.X, pos.Y, fontSize, defaultArg colour Raylib.GREEN)
 
-        let text (msg: string) (pos: IntVec) (fontSize: int) (colour: Color) =
-            View (fun () -> let () = Raylib.DrawText(msg, pos.X, pos.Y, fontSize, colour) in [])
+            interface IViewable<'model> with
+                member _.View() = let () = Raylib.DrawText(msg, posX, posY, fontSize, defaultArg colour Raylib.GREEN) in []
+        end
 
-        let zero = View (fun () -> [])
+        [<Struct>]
+        type Rect<'model> =
+            { x: int
+            ; y: int
+            ; width: int
+            ; height: int
+            ; colour: Colour
+            ; isSolid: bool
+            }
+            interface IViewable<'model> with
+                member this.View() =
+                    let () =
+                        (this.x, this.y, this.width, this.height, this.colour)
+                        |> if this.isSolid then Raylib.DrawRectangle else Raylib.DrawRectangleLines
+                    []
+
+        (*
+        Okay
+        I think my subscription API will use computation expressions, with custom syntax like 'ontick'
+        Should function something like a more domain-specifc IO monad,
+        with the custom keywords specifying which platform event to subscribe to
+
+        something like this
+
+        let subscription model =
+            computationCE {
+                if model.GameplayActive then
+                    ontick (fun frame -> [ if frame.KeyPressed(KeyboardKey.W) then yield ... ]
+            }
+        
+        *)
 
     let run
         (cfg: Config)
         (init: Writer.Writer<Msg<'model>, 'model>)
-        (view: 'model -> Viewable<'model>)
-        (subscription: 'model -> Subscription<'model>)
+        (view: FrameContext -> 'model -> IViewable<'model>)
+        (subscription: FrameContext -> 'model -> List<Msg<'model>>)
     
         = do
         Raylib.InitWindow (fst cfg.Resolution, snd cfg.Resolution, "a game to be played")
@@ -107,13 +149,13 @@ module RayPlatform =
             ; Raylib.ClearBackground cfg.BackgroundColour
             ; if cfg.ShowFPS then Raylib.DrawFPS(0, 0)
 
-            ; yield!
-                view model
-                |> function View render -> render()
+            ; let frame = FrameContext() in ()
 
             ; yield!
-                subscription model
-                |> function OnTick onTick -> TickInfo() |> onTick
+                (view frame model).View()
+
+            ; yield!
+                subscription frame model
 
             ; Raylib.EndDrawing()
             ]
@@ -122,12 +164,12 @@ module RayPlatform =
             function
             | [] when Raylib.WindowShouldClose() -> Raylib.CloseWindow(); exit 0
 
-            | [] ->
-                update model (rayTick model)
+            | [] -> update model (rayTick model)
 
             | (Msg nextMsg) :: remaining ->
                 let (Writer.Writer (intermediate, model')) = nextMsg model
                 update model' (intermediate @ remaining)
 
-        let (Writer.Writer (initialMsgs, initialModel)) = init
-        update initialModel initialMsgs
+        match init with
+        Writer.Writer (initialMsgs, initialModel) ->
+            update initialModel initialMsgs

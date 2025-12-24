@@ -54,7 +54,27 @@ type Creature (strength, health, token, position) =
 
 let hurtCreature damage creatureID =
     fun (model: Model) ->
-        model
+        Writer.writer {
+            let targetAccessor = model |> (_.Entities $ Map.itemLens creatureID)
+            match targetAccessor.Get with
+            | Some (:? ICharacterSheet as target) ->
+                let target' = target.Health <-* (fun health -> health - damage)
+                do! Model.PutLog $"{creatureID} has taken {damage} damage" |> Writer.write
+
+                if target'.Health.Get <= 0 then
+                    do! Model.PutLog $"{creatureID} has died" |> Writer.write
+                    return targetAccessor <-- None
+
+                else
+                    return targetAccessor <-- Some target'
+
+            | _ ->
+                do! Model.PutLog $"there is no creature with the ID: {creatureID}" |> Writer.write
+                return model
+        }
+    |> Msg
+        
+        (*model
         |> (_.Entities $ Map.itemLens creatureID)
         <-* Option.bind (function
             | :? ICharacterSheet as target ->
@@ -63,7 +83,7 @@ let hurtCreature damage creatureID =
             | x -> Some x
             )
         |> Writer.return_
-    |> Msg
+    |> Msg*)
 
 let attackCreature attackerID defenderID =
     fun (model: Model) ->

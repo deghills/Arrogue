@@ -16,32 +16,49 @@ type Model =
     val private _map: Set<IntVec>
     val private _seed: RandomPure.RandomSeed
     val private _entities: Map<EntityID, IBehaviour>
-    private new (map, entitites, seed) = { _map = map; _seed = seed; _entities = entitites }
+    val private _logs: List<string>
+    private new (?map, ?entities, ?seed, ?logs) =
+        { _map = defaultArg map Set.empty
+        ; _seed = defaultArg seed (RandomPure.Seed 32)
+        ; _entities = defaultArg entities Map.empty
+        ; _logs = defaultArg logs []
+        }
 
     member this.Map =
         { Get = this._map
-        ; Change = fun f -> Model (f this._map, this._entities, this._seed) }
+        ; Change = fun f -> Model (f this._map, this._entities, this._seed, this._logs) }
     member this.Entities =
         { Get = this._entities
-        ; Change = fun f -> Model (this._map, f this._entities, this._seed) }
+        ; Change = fun f -> Model (this._map, f this._entities, this._seed, this._logs) }
     member this.Seed =
         { Get = this._seed
-        ; Change = fun f -> Model (this._map, this._entities, f this._seed) }
+        ; Change = fun f -> Model (this._map, this._entities, f this._seed, this._logs) }
+
+    member this.Logs = this._logs
 
     member this.FindEntity (entityID: EntityID) =
         this._entities.TryFind entityID
 
     member this.NextID = Seq.find (not << this._entities.ContainsKey) (Seq.initInfinite enum<EntityID>)
 
+    static member PutLog log =
+        fun (model: Model) ->
+            Model (model.Map.Get, model.Entities.Get, model.Seed.Get, log :: model.Logs) |> Writer.return_
+        |> Msg
+
     /// If an entity with this ID already exists, will produce a ModelLog error message instead
     static member SpawnEntity (entity: IBehaviour, ?withID: EntityID) =
         fun (model: Model) ->
-            let entityID = defaultArg withID model.NextID
+            Writer.writer {
+                let entityID = defaultArg withID model.NextID
 
-            match model._entities.TryFind entityID with
-            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed)
-            | Some _ -> failwith "make this log the error when you make the logging system"
-            |> Writer.return_
+                match model._entities.TryFind entityID with
+                | None -> return Model (model._map, model._entities.Add(entityID, entity), model._seed)
+                | Some _ ->
+                    do! Writer.write (Model.PutLog $"ERROR: there is already an entity with the ID {entityID}")
+                    return model
+            }
+
         |> Msg
 
     static member SpawnEntityOnRandomTile (entity: IBehaviour, ?withID: EntityID) =
@@ -63,10 +80,14 @@ type Model =
 
     static member DestroyEntity (entityID: EntityID) =
         fun (model: Model) ->
-            match model._entities.TryFind entityID with
-            | None -> failwith "make this log the error when you make the logging system"
-            | Some _ -> Model (model._map, model._entities.Remove entityID, model._seed)
-            |> Writer.return_
+            Writer.writer {
+                match model._entities.TryFind entityID with
+                | None ->
+                    do! Writer.write (Model.PutLog $"DestroyEntity ERROR: there is entity with the ID {entityID}")
+                    return model
+                | Some _ ->
+                    return Model (model._map, model._entities.Remove entityID, model._seed)
+            }
         |> Msg
 
     static member GenNewMap =
@@ -80,10 +101,8 @@ type Model =
             |> Writer.return_
         |> Msg
 
-    static member Empty = Model(Set.empty, Map.empty, RandomPure.Seed 69)
+    static member Empty = Model()
 
-//move toward a GUID model where entities are stored in an array and carry their own EntityID, allowing find-and-replace semantics
-//GUID also allows functions parameters to be refined to IBehaviour subtypes, as passing identifiers is no longer required for model updates
 //add an in-game logging system, allowing notifications for player and developer information
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
@@ -119,12 +138,8 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
             match
                 priorityQueue
                 |> Map.toSeq
-                (* Technically the Chebyshev norm says that ||(x, 0)|| = ||(x, x)||,
-                ** which can lead to unnatural looking pathing even though
-                ** it's still technically an optimal path under the Chebyshev norm.
-                ** For multiple optimal paths, tie-breaking with the Manhattan distance here
-                ** will choose the most natural looking one *)
                 |> Seq.tryMinBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
+                // tie-breaking with the Manhattan distance here will choose the most natural looking optimal path
             with
             | None -> [] //queue is empty, no path exists
             | Some (currentTile, (currentDist, previousTileOpt)) ->
@@ -158,36 +173,3 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
 
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
-
-(*let spawnCreaturesAtRandom model creatures =
-    let rand = RandomPure.Rand(randomLens)
-
-    let getAvailableTiles =
-        ProjectUtils.s'
-            mapLens.get    
-            (  creaturesLens.get
-            >> Seq.map (function KeyValue (_, c) -> c.Pos)
-            >> Set
-            )
-            Set.difference
-
-    Seq.fold
-        (fun m (creatureID, creature) ->
-            State.state {
-                let! m = m
-                let! pos = rand.RandomItem (getAvailableTiles m)
-
-                let 
-
-                return failwith""
-            }
-        )
-        model
-        (Map.toSeq model.Creatures)
-    
-    let spawn creatureID creature =
-        State.state {
-            let! randomTile = rand.RandomItem model.Map
-            let! () = State.modify (creaturesLens.update (id))
-        }
-    ()*)
