@@ -27,6 +27,7 @@ type Model =
         ; _logs = defaultArg logs []
         ; _zoom = defaultArg zoom 30
         }
+    static member Empty = Model.Make()
 
     member this.Map =
         { Get = this._map
@@ -43,9 +44,6 @@ type Model =
     member this.Zoom =
         { Get = this._zoom
         ; Change = fun f -> { this with _zoom = f this._zoom } }
-
-    member this.FindEntity (entityID: EntityID) =
-        this._entities.TryFind entityID
 
     member this.NextID = Seq.find (not << this._entities.ContainsKey) (Seq.initInfinite enum<EntityID>)
 
@@ -104,8 +102,6 @@ type Model =
                 |> _.Map <-- newMap
                 ), []
         |> Msg
-
-    static member Empty = Model.Make()
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =
@@ -175,3 +171,26 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
 
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
+
+let move entityID newPos =
+    fun (model: Model) ->
+        ( model
+        |> (_.Entities $ Map.itemLens entityID )
+        <-* Option.map (fun gp -> gp.Position <-- newPos)
+        ), []
+    |> Msg
+
+let moveToward entityID destination =
+    fun (model: Model) ->
+        model
+        |> (_.Entities $ Map.itemLens entityID)
+        |> _.Get
+        |> Option.toList
+        |> List.collect (fun gp -> findPath gp.Position.Get destination model)
+        |> function
+            | [] -> model, []
+            | nextPos :: _ ->
+                ( model
+                , [move entityID nextPos]
+                )
+    |> Msg

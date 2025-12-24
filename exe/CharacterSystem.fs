@@ -6,29 +6,6 @@ open ProjectUtils
 open Model
 open Accessor
 
-let move entityID newPos =
-    fun (model: Model) ->
-        ( model
-        |> (_.Entities $ Map.itemLens entityID )
-        <-* Option.map (fun gp -> gp.Position <-- newPos)
-        ), []
-    |> Msg
-
-let moveToward entityID destination =
-    fun (model: Model) ->
-        model
-        |> (_.Entities $ Map.itemLens entityID)
-        |> _.Get
-        |> Option.toList
-        |> List.collect (fun gp -> Model.findPath gp.Position.Get destination model)
-        |> function
-            | [] -> model, []
-            | nextPos :: _ ->
-                ( model
-                , [move entityID nextPos]
-                )
-    |> Msg
-
 type ICharacterSheet = interface
     inherit IBehaviour
     //abstract member Name : Accessor<ICharacterSheet, string>
@@ -38,7 +15,7 @@ type ICharacterSheet = interface
         :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
 
-type Creature (strength, health, token, position) =
+type Creature (strength, health, token, position) = class
     interface ICharacterSheet with
         member _.Strength =
             { Accessor.Get = strength; Accessor.Change = fun f -> Creature (f strength, health, token, position) }
@@ -50,6 +27,7 @@ type Creature (strength, health, token, position) =
             { Accessor.Get = position; Accessor.Change = fun f -> Creature (strength, health, token, f position) }
 
     new() = Creature (11, 100, 'g', IntVec.Zero)
+end
 
 let hurtCreature damage creatureID =
     fun (model: Model) ->

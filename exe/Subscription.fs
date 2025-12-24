@@ -1,13 +1,14 @@
 ﻿module Subscription
 
 open Rogue.Lib
+open ProjectUtils
 open RayPlatform
 open Accessor
 
 open Model
 
 let subscriptions (frame: FrameContext) (model: Model) =
-    [ match model.FindEntity EntityID.player with
+    [ match model .> (_.Entities $ Map.itemLens EntityID.player) with
         | Some player ->
             if frame[KeyboardKey.KEY_W].IsPressed then
                 yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, -1))
