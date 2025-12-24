@@ -14,7 +14,7 @@ let init =
         do! Model.PutLog "hey guys" |> Writer.write
         do! Model.PutLog "can you hear me?" |> Writer.write
         return Model.Empty
-    }
+    } |> Writer.unwrap
 
 RayPlatform.run
     { RayPlatform.Config.Default with Fullscreen = false }

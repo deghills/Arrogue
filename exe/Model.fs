@@ -43,21 +43,20 @@ type Model =
 
     static member PutLog log =
         fun (model: Model) ->
-            Model (model.Map.Get, model.Entities.Get, model.Seed.Get, log :: model.Logs) |> Writer.return_
+            Model (model.Map.Get, model.Entities.Get, model.Seed.Get, log :: model.Logs), []
         |> Msg
 
     /// If an entity with this ID already exists, will produce a ModelLog error message instead
     static member SpawnEntity (entity: IBehaviour, ?withID: EntityID) =
         fun (model: Model) ->
-            Writer.writer {
-                let entityID = defaultArg withID model.NextID
+            let entityID = defaultArg withID model.NextID
 
-                match model._entities.TryFind entityID with
-                | None -> return Model (model._map, model._entities.Add(entityID, entity), model._seed)
-                | Some _ ->
-                    do! Writer.write (Model.PutLog $"ERROR: there is already an entity with the ID {entityID}")
-                    return model
-            }
+            match model._entities.TryFind entityID with
+            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed), []
+            | Some _ ->
+                ( model
+                , [Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"]
+                )
 
         |> Msg
 
@@ -72,22 +71,20 @@ type Model =
             |> _.RunState(model._seed)
             |> function
                 newSeed, newPosition ->
-                    Writer.writer {
-                        do! Model.SpawnEntity (entity.Position <-- newPosition, entityID) |> Writer.write
-                        return model.Seed <-- newSeed
-                    }
+                    ( model.Seed <-- newSeed
+                    , [Model.SpawnEntity (entity.Position <-- newPosition, entityID)]
+                    )
         |> Msg
 
     static member DestroyEntity (entityID: EntityID) =
         fun (model: Model) ->
-            Writer.writer {
-                match model._entities.TryFind entityID with
-                | None ->
-                    do! Writer.write (Model.PutLog $"DestroyEntity ERROR: there is entity with the ID {entityID}")
-                    return model
-                | Some _ ->
-                    return Model (model._map, model._entities.Remove entityID, model._seed)
-            }
+            match model._entities.TryFind entityID with
+            | None ->
+                (model
+                , [Model.PutLog $"DestroyEntity ERROR: there is entity with the ID {entityID}"]
+                )
+            | Some _ ->
+                Model (model._map, model._entities.Remove entityID, model._seed), []
         |> Msg
 
     static member GenNewMap =
@@ -95,15 +92,13 @@ type Model =
             BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
             |> _.RunState(model.Seed.Get)
             |> fun (newSeed, newMap) ->
-                model
+                ( model
                 |> _.Seed <-- newSeed
                 |> _.Map <-- newMap
-            |> Writer.return_
+                ), []
         |> Msg
 
     static member Empty = Model()
-
-//add an in-game logging system, allowing notifications for player and developer information
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =

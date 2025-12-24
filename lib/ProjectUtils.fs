@@ -96,17 +96,18 @@ module ProjectUtils =
 
     module Writer =
         type Writer<'s, 'a> =
-            | Writer of (List<'s> * 'a)
+            | Writer of ('a * List<'s>)
 
-        let return_ x = Writer ([], x)
+        let return_ x = Writer (x, [])
         let map mapping = function Writer (history, value) -> Writer (history, mapping value)
         let bind binding = function
-            Writer (oldHistory, oldValue) ->
+            Writer (oldValue, oldHistory) ->
                 match binding oldValue with
-                Writer (newHistory, newValue) -> Writer (oldHistory @ newHistory, newValue)
+                Writer (newValue, newHistory) -> Writer (newValue, oldHistory @ newHistory)
 
-        let write h = Writer ([h], ())
-        let writeMany hs = Writer (hs, ())
+        let write h = Writer ((), [h])
+        let writeMany hs = Writer ((), hs)
+        let unwrap (Writer w) = w
 
         type WriterCEBuilder() =
             member _.Bind(x, k) = bind k x

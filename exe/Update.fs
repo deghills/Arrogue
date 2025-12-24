@@ -8,10 +8,10 @@ open Accessor
 
 let move entityID newPos =
     fun (model: Model) ->
-        model
+        ( model
         |> (_.Entities $ Map.itemLens entityID )
-        <-*Option.map (fun gp -> gp.Position <-- newPos)
-        |> Writer.return_
+        <-* Option.map (fun gp -> gp.Position <-- newPos)
+        ), []
     |> Msg
 
 let moveToward entityID destination =
@@ -22,12 +22,11 @@ let moveToward entityID destination =
         |> Option.toList
         |> List.collect (fun gp -> Model.findPath gp.Position.Get destination model)
         |> function
-            | [] -> Writer.return_ model
+            | [] -> model, []
             | nextPos :: _ ->
-                Writer.writer {
-                    do! Writer.write (move entityID nextPos)
-                    return model
-                }
+                ( model
+                , [move entityID nextPos]
+                )
     |> Msg
 
 type ICharacterSheet = interface
@@ -35,7 +34,7 @@ type ICharacterSheet = interface
     //abstract member Name : Accessor<ICharacterSheet, string>
     abstract member Strength : Accessor<ICharacterSheet, int>
     abstract member Health : Accessor<ICharacterSheet, int>
-    static member Qualify: obj -> option<ICharacterSheet> = function
+    static member Qualify: IBehaviour -> option<ICharacterSheet> = function
         :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
 
@@ -69,38 +68,22 @@ let hurtCreature damage creatureID =
                     return targetAccessor <-- Some target'
 
             | _ ->
-                do! Model.PutLog $"there is no creature with the ID: {creatureID}" |> Writer.write
+                do! Model.PutLog $"ERROR: there is no creature with the ID: {creatureID}" |> Writer.write
                 return model
-        }
+        } |> Writer.unwrap
     |> Msg
-        
-        (*model
-        |> (_.Entities $ Map.itemLens creatureID)
-        <-* Option.bind (function
-            | :? ICharacterSheet as target ->
-                let damagedTarget = target.Health <-* (fun health -> health - damage)
-                if damagedTarget.Health.Get <= 0 then None else Some damagedTarget
-            | x -> Some x
-            )
-        |> Writer.return_
-    |> Msg*)
 
 let attackCreature attackerID defenderID =
     fun (model: Model) ->
-        Option.option {
-            let! attacker = model.Entities.Get.TryFind(attackerID) |> Option.bind (function :? ICharacterSheet as chrSht -> Some chrSht | _ -> None)
-
-            return Writer.writer {
-                do! hurtCreature (attacker.Strength.Get) defenderID |> Writer.write
-                return model
-            }
-        } |> Option.defaultValue (Writer.return_ model)
+        match model.Entities.Get.TryFind(attackerID) |> Option.bind ICharacterSheet.Qualify with
+        | Some attacker -> model, [hurtCreature (attacker.Strength.Get) defenderID]
+        | None -> model, []
     |> Msg
 
 let creatureAI creatureID =
     fun (model: Model) ->
         if creatureID = EntityID.player
-        then Writer.return_ model
+        then model, []
         else
 
         match
@@ -108,30 +91,26 @@ let creatureAI creatureID =
             model .> (_.Entities $ Map.itemLens EntityID.player)
         with
         | Some creature, Some player->
-            Writer.writer {
-                do! if IntVec.NormChebyshev (player.Position.Get - creature.Position.Get) <= 1
-                    then Writer.write (attackCreature creatureID EntityID.player)
-                    else Writer.write (moveToward creatureID player.Position.Get)
-
-                return model
-            }
-        | _ -> Writer.return_ model
+            ( model
+            , if IntVec.NormChebyshev (player.Position.Get - creature.Position.Get) <= 1
+                then [attackCreature creatureID EntityID.player]
+                else [moveToward creatureID player.Position.Get]
+            )
+        
+        | _ -> model, []
     |> Msg
 
 let environmentTurn =
     fun (model: Model) ->
-        Writer.writer {
-            for creatureID in Map.keys model.Entities.Get do
-                do! Writer.write (creatureAI creatureID)
-
-            return model
-        }
+        (model
+        , [for creatureID in Map.keys model.Entities.Get -> creatureAI creatureID]
+        )
     |> Msg
 
 let playerGenericAction selectedTile =
     fun (model: Model) ->
         match model .> (_.Entities $ Map.itemLens EntityID.player) with
-        | None -> Writer.return_ model
+        | None -> model, []
 
         | Some player ->
             let targetIsInRange = IntVec.NormChebyshev (selectedTile - player.Position.Get) <= 1
@@ -148,5 +127,5 @@ let playerGenericAction selectedTile =
                         do! Writer.write environmentTurn
 
                 return model
-            }
+            } |> Writer.unwrap
     |> Msg

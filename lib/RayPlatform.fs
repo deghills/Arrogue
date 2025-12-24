@@ -69,7 +69,7 @@ module RayPlatform =
         let darkGrey = Raylib.DARKGRAY
         let black = Raylib.BLACK
 
-    type Msg<'model> = Msg of ('model -> Writer.Writer<Msg<'model>,'model>)
+    type Msg<'model> = Msg of ('model -> 'model * List<Msg<'model>>)
 
     type IViewable<'model> = interface
         abstract member View : unit -> List<Msg<'model>>
@@ -86,7 +86,7 @@ module RayPlatform =
 
         let changeWindowSize horz vert =
             let () = Raylib.SetWindowSize(horz, vert)
-            Writer.return_ |> Msg
+            Msg (fun x -> x, [])
 
     module Viewables =
         let empty<'model> = { new IViewable<'model> with member _.View() = [] }
@@ -115,25 +115,9 @@ module RayPlatform =
                         |> if this.isSolid then Raylib.DrawRectangle else Raylib.DrawRectangleLines
                     []
 
-        (*
-        Okay
-        I think my subscription API will use computation expressions, with custom syntax like 'ontick'
-        Should function something like a more domain-specifc IO monad,
-        with the custom keywords specifying which platform event to subscribe to
-
-        something like this
-
-        let subscription model =
-            computationCE {
-                if model.GameplayActive then
-                    ontick (fun frame -> [ if frame.KeyPressed(KeyboardKey.W) then yield ... ]
-            }
-        
-        *)
-
     let run
         (cfg: Config)
-        (init: Writer.Writer<Msg<'model>, 'model>)
+        (init: 'model * List<Msg<'model>>)
         (view: FrameContext -> 'model -> IViewable<'model>)
         (subscription: FrameContext -> 'model -> List<Msg<'model>>)
     
@@ -167,9 +151,7 @@ module RayPlatform =
             | [] -> update model (rayTick model)
 
             | (Msg nextMsg) :: remaining ->
-                let (Writer.Writer (intermediate, model')) = nextMsg model
+                let (model', intermediate) = nextMsg model
                 update model' (intermediate @ remaining)
 
-        match init with
-        Writer.Writer (initialMsgs, initialModel) ->
-            update initialModel initialMsgs
+        init ||> update
