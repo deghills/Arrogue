@@ -17,22 +17,27 @@ type Model =
     val private _seed: RandomPure.RandomSeed
     val private _entities: Map<EntityID, IBehaviour>
     val private _logs: List<string>
-    private new (?map, ?entities, ?seed, ?logs) =
-        { _map = defaultArg map Set.empty
-        ; _seed = defaultArg seed (RandomPure.Seed 32)
-        ; _entities = defaultArg entities Map.empty
-        ; _logs = defaultArg logs []
+    val private _zoom: int
+    private new (map, entities, seed, logs, zoom) =
+        { _map = map
+        ; _seed = seed
+        ; _entities = entities
+        ; _logs = logs
+        ; _zoom = zoom
         }
 
     member this.Map =
         { Get = this._map
-        ; Change = fun f -> Model (f this._map, this._entities, this._seed, this._logs) }
+        ; Change = fun f -> Model (f this._map, this._entities, this._seed, this._logs, this._zoom) }
     member this.Entities =
         { Get = this._entities
-        ; Change = fun f -> Model (this._map, f this._entities, this._seed, this._logs) }
+        ; Change = fun f -> Model (this._map, f this._entities, this._seed, this._logs, this._zoom) }
     member this.Seed =
         { Get = this._seed
-        ; Change = fun f -> Model (this._map, this._entities, f this._seed, this._logs) }
+        ; Change = fun f -> Model (this._map, this._entities, f this._seed, this._logs, this._zoom) }
+    member this.Zoom =
+        { Get = this._zoom
+        ; Change = fun f -> Model (this._map, this._entities, this._seed, this._logs, f this._zoom) }
 
     member this.Logs = this._logs
 
@@ -43,7 +48,7 @@ type Model =
 
     static member PutLog log =
         fun (model: Model) ->
-            Model (model.Map.Get, model.Entities.Get, model.Seed.Get, log :: model.Logs), []
+            Model (model._map, model._entities, model._seed, log :: model._logs, model._zoom), []
         |> Msg
 
     /// If an entity with this ID already exists, will produce a ModelLog error message instead
@@ -52,7 +57,7 @@ type Model =
             let entityID = defaultArg withID model.NextID
 
             match model._entities.TryFind entityID with
-            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed), []
+            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed, model._logs, model._zoom), []
             | Some _ ->
                 ( model
                 , [Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"]
@@ -84,7 +89,7 @@ type Model =
                 , [Model.PutLog $"DestroyEntity ERROR: there is entity with the ID {entityID}"]
                 )
             | Some _ ->
-                Model (model._map, model._entities.Remove entityID, model._seed), []
+                Model (model._map, model._entities.Remove entityID, model._seed, model._logs, model._zoom), []
         |> Msg
 
     static member GenNewMap =
@@ -98,7 +103,16 @@ type Model =
                 ), []
         |> Msg
 
-    static member Empty = Model()
+    static member Make(?map, ?entities, ?seed, ?logs, ?zoom) =
+        Model
+            ( defaultArg map Set.empty
+            , defaultArg entities Map.empty
+            , defaultArg seed (RandomPure.Seed 32)
+            , defaultArg logs []
+            , defaultArg zoom 30
+            )
+
+    static member Empty = Model.Make()
     
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =

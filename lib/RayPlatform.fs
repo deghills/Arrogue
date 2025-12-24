@@ -95,6 +95,8 @@ module RayPlatform =
             new (msg: string, pos: IntVec, fontSize: int, ?colour: Color) =
                 Text (msg, pos.X, pos.Y, fontSize, defaultArg colour Raylib.GREEN)
 
+            member _.Measure(frame: FrameContext) = Raylib.MeasureText(msg, fontSize)
+
             interface IViewable<'model> with
                 member _.View() = let () = Raylib.DrawText(msg, posX, posY, fontSize, defaultArg colour Raylib.GREEN) in []
         end

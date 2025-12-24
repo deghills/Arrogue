@@ -6,6 +6,7 @@ type IntVec =
     static member (+) (Vec (x, y), Vec (i, j)) = Vec (x + i, y + j)
     static member (*) (scalar, (Vec (x, y))) = Vec (scalar * x, scalar * y)
     static member (*) (vec: IntVec, scalar: int) = scalar * vec
+    static member (/) (vec: IntVec, denominator: int) = Vec (vec.X / denominator, vec.Y / denominator)
     static member (~-) (Vec (x, y)) = Vec (-x, -y)
     static member (-) (lhs: IntVec, rhs: IntVec) = lhs + -rhs
     member this.X = match this with Vec (x, _) -> x

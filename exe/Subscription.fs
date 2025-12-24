@@ -2,22 +2,30 @@
 
 open Rogue.Lib
 open RayPlatform
+open Accessor
 
 open Model
 
-let subscriptions (frame: FrameContext) (state: Model) =
-    match state.FindEntity EntityID.player with
-    | Some player ->
-        [ if frame[KeyboardKey.KEY_W].IsPressed then
-            yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, -1))
+let subscriptions (frame: FrameContext) (model: Model) =
+    [ match model.FindEntity EntityID.player with
+        | Some player ->
+            if frame[KeyboardKey.KEY_W].IsPressed then
+                yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, -1))
 
-        ; if frame[KeyboardKey.KEY_A].IsPressed then
-            yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (-1, 0))
+            if frame[KeyboardKey.KEY_A].IsPressed then
+                yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (-1, 0))
 
-        ; if frame[KeyboardKey.KEY_S].IsPressed then
-            yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, 1))
+            if frame[KeyboardKey.KEY_S].IsPressed then
+                yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (0, 1))
 
-        ; if frame[KeyboardKey.KEY_D].IsPressed then
-            yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (1, 0))
-        ]
-    | None -> []
+            if frame[KeyboardKey.KEY_D].IsPressed then
+                yield Update.playerGenericAction (player.Position.Get + IntVec.Vec (1, 0))
+        | None -> ()
+
+    ; if frame[KeyboardKey.KEY_EQUAL].IsPressed then
+        yield Msg (fun m -> m.Zoom <-- m.Zoom.Get + 2, [])
+
+    ; if frame[KeyboardKey.KEY_MINUS].IsPressed then
+        yield Msg (fun m -> m.Zoom <-- m.Zoom.Get - 2, [])
+    
+    ]
