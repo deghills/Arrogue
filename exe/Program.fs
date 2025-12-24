@@ -11,8 +11,8 @@ let init =
         do! Model.GenNewMap |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Update.Creature (11, 100, '@', IntVec.Zero), EntityID.player) |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Update.Creature (10, 100, 'g', IntVec.Zero)) |> Writer.write
-
-        return Model.Empty
+        do! Model.SpawnEntityOnRandomTile (Update.Creature (10, 100, 'g', IntVec.Zero)) |> Writer.write
+        return Model.Make (RandomPure.Seed 632)
     } |> Writer.unwrap
 
 RayPlatform.run

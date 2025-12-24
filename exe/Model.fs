@@ -13,33 +13,36 @@ type IBehaviour =
     abstract member Token: Accessor<IBehaviour, char>
 
 type Model =
-    val private _map: Set<IntVec>
-    val private _seed: RandomPure.RandomSeed
-    val private _entities: Map<EntityID, IBehaviour>
-    val private _logs: List<string>
-    val private _zoom: int
-    private new (map, entities, seed, logs, zoom) =
-        { _map = map
-        ; _seed = seed
-        ; _entities = entities
-        ; _logs = logs
-        ; _zoom = zoom
+    { _map: Set<IntVec>
+    ; _seed: RandomPure.RandomSeed
+    ; _entities: Map<EntityID, IBehaviour>
+    ; _logs: List<string>
+    ; _zoom: int
+    }
+
+    static member Make(?seed, ?map, ?entities, ?logs, ?zoom) =
+        { _map = defaultArg map Set.empty
+        ; _entities = defaultArg entities Map.empty
+        ; _seed = defaultArg seed (RandomPure.Seed 32)
+        ; _logs = defaultArg logs []
+        ; _zoom = defaultArg zoom 30
         }
 
     member this.Map =
         { Get = this._map
-        ; Change = fun f -> Model (f this._map, this._entities, this._seed, this._logs, this._zoom) }
+        ; Change = fun f -> { this with _map = f this._map } }
     member this.Entities =
         { Get = this._entities
-        ; Change = fun f -> Model (this._map, f this._entities, this._seed, this._logs, this._zoom) }
+        ; Change = fun f -> { this with _entities = f this._entities } }
     member this.Seed =
         { Get = this._seed
-        ; Change = fun f -> Model (this._map, this._entities, f this._seed, this._logs, this._zoom) }
+        ; Change = fun f -> { this with _seed = f this._seed } }
+    member this.Logs =
+        { Get = this._logs
+        ; Change = fun f -> { this with _logs = f this._logs } }
     member this.Zoom =
         { Get = this._zoom
-        ; Change = fun f -> Model (this._map, this._entities, this._seed, this._logs, f this._zoom) }
-
-    member this.Logs = this._logs
+        ; Change = fun f -> { this with _zoom = f this._zoom } }
 
     member this.FindEntity (entityID: EntityID) =
         this._entities.TryFind entityID
@@ -48,7 +51,7 @@ type Model =
 
     static member PutLog log =
         fun (model: Model) ->
-            Model (model._map, model._entities, model._seed, log :: model._logs, model._zoom), []
+            model.Logs <-- log :: model.Logs.Get, []
         |> Msg
 
     /// If an entity with this ID already exists, will produce a ModelLog error message instead
@@ -57,12 +60,11 @@ type Model =
             let entityID = defaultArg withID model.NextID
 
             match model._entities.TryFind entityID with
-            | None -> Model (model._map, model._entities.Add(entityID, entity), model._seed, model._logs, model._zoom), []
-            | Some _ ->
-                ( model
-                , [Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"]
-                )
+            | None ->
+                model.Entities <-* Map.add entityID entity, []
 
+            | Some _ ->
+                (model, [Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"])
         |> Msg
 
     static member SpawnEntityOnRandomTile (entity: IBehaviour, ?withID: EntityID) =
@@ -86,10 +88,10 @@ type Model =
             match model._entities.TryFind entityID with
             | None ->
                 (model
-                , [Model.PutLog $"DestroyEntity ERROR: there is entity with the ID {entityID}"]
+                , [Model.PutLog $"DestroyEntity ERROR: there is no entity with the ID {entityID}"]
                 )
             | Some _ ->
-                Model (model._map, model._entities.Remove entityID, model._seed, model._logs, model._zoom), []
+                model.Entities <-* Map.remove entityID, []
         |> Msg
 
     static member GenNewMap =
@@ -102,15 +104,6 @@ type Model =
                 |> _.Map <-- newMap
                 ), []
         |> Msg
-
-    static member Make(?map, ?entities, ?seed, ?logs, ?zoom) =
-        Model
-            ( defaultArg map Set.empty
-            , defaultArg entities Map.empty
-            , defaultArg seed (RandomPure.Seed 32)
-            , defaultArg logs []
-            , defaultArg zoom 30
-            )
 
     static member Empty = Model.Make()
     

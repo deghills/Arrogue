@@ -31,7 +31,7 @@ let view (frame: FrameContext) (model: Model) =
         yield logWindow
         yield { logWindow with isSolid = false; colour = Colours.green }
         yield!
-            model.Logs
+            model.Logs.Get
             |> Seq.mapi
                 (fun i log ->
                     ( log
