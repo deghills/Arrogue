@@ -8,13 +8,12 @@
   <ItemGroup>
     <Content Include="todo.txt" />
     <Compile Include="Model.fs" />
+    <Compile Include="ItemSystem.fs" />
     <Compile Include="CharacterSystem.fs" />
     <Compile Include="Subscription.fs" />
     <Compile Include="View.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
-
-  <ItemGroup />
 
   <ItemGroup>
     <PackageReference Include="Raylib-CSharp-Vinculum" Version="5.0.1" />

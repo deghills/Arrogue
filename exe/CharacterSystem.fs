@@ -1,13 +1,14 @@
-﻿module Update
+﻿module CharacterSystem
 
 open Rogue.Lib
 open RayPlatform
 open ProjectUtils
-open Model
 open Accessor
+open Model
+open ItemSystem
 
 type ICharacterSheet = interface
-    inherit IBehaviour
+    inherit IContainer
     //abstract member Name : Accessor<ICharacterSheet, string>
     abstract member Strength : Accessor<ICharacterSheet, int>
     abstract member Health : Accessor<ICharacterSheet, int>
@@ -15,20 +16,31 @@ type ICharacterSheet = interface
         :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
 
-type Creature (name, strength, health, token, ?position) = class
-    let pos = defaultArg position IntVec.Zero
+type Creature =
+    { _name: string; _position: IntVec; _token: char; _strength: int; _health: int; _contents: List<IItem> }
+
+    static member Make(name, token, strength, health, ?position, ?contents) =
+        { _name = name
+        ; _position = defaultArg position IntVec.Zero
+        ; _token = token
+        ; _strength = strength
+        ; _health = health
+        ; _contents = defaultArg contents []
+        }
+
     interface ICharacterSheet with
-        member _.Name =
-            { Accessor.Get = name; Accessor.Change = fun f -> Creature (f name, strength, health, token, pos) }
-        member _.Strength =
-            { Accessor.Get = strength; Accessor.Change = fun f -> Creature (name, f strength, health, token, pos) }
-        member _.Health =
-            { Accessor.Get = health; Accessor.Change = fun f -> Creature (name, strength, f health, token, pos) }
-        member _.Token =
-            { Accessor.Get = token; Accessor.Change = fun f -> Creature (name, strength, health, f token, pos) }
-        member _.Position =
-            { Accessor.Get = pos; Accessor.Change = fun f -> Creature (name, strength, health, token, f pos) }
-end
+        member this.Name = { Get = this._name; Change = fun f -> { this with _name = f this._name } }
+        member this.Position = { Get = this._position; Change = fun f -> { this with _position = f this._position } }
+        member this.Token = { Get = this._token; Change = fun f -> { this with _token = f this._token } }
+        member this.Strength = { Get = this._strength; Change = fun f -> { this with _strength = f this._strength } }
+        member this.Health = { Get = this._health; Change = fun f -> { this with _health = f this._health } }
+        member this.Contents = { Get = this._contents; Change = fun f -> { this with _contents = f this._contents } }
+
+        member this.GetEnumerator (): System.Collections.Generic.IEnumerator<IItem> =
+            (this._contents :> seq<IItem>).GetEnumerator()
+
+        member this.GetEnumerator (): System.Collections.IEnumerator =
+            (this :> seq<IItem>).GetEnumerator()
 
 let hurtCreature damage creatureID =
     fun (model: Model) ->
@@ -54,22 +66,23 @@ let hurtCreature damage creatureID =
 
 let attackCreature attackerID defenderID =
     fun (model: Model) ->
-        match model.Entities.Get.TryFind(attackerID) |> Option.bind ICharacterSheet.Qualify with
-        | Some attacker -> model, [hurtCreature (attacker.Strength.Get) defenderID]
-        | None -> model, []
+        match
+            model .> (_.Entities $ Map.itemLens attackerID),
+            model .> (_.Entities $ Map.itemLens defenderID)
+        with
+        | Some (:? ICharacterSheet as attacker), Some (:? ICharacterSheet) ->
+            model, [hurtCreature (attacker.Strength.Get) defenderID]
+
+        | _ -> model, [Model.PutLog "ERROR: attackCreature invalid input"]
     |> Msg
 
 let creatureAI creatureID =
     fun (model: Model) ->
-        if creatureID = EntityID.player
-        then model, []
-        else
-
         match
             model .> (_.Entities $ Map.itemLens creatureID),
             model .> (_.Entities $ Map.itemLens EntityID.player)
         with
-        | Some creature, Some player->
+        | Some (:? ICharacterSheet as creature), Some (:? ICharacterSheet as player) when creatureID <> EntityID.player ->
             ( model
             , if IntVec.NormChebyshev (player.Position.Get - creature.Position.Get) <= 1
                 then [attackCreature creatureID EntityID.player]
@@ -93,8 +106,33 @@ let playerGenericAction selectedTile =
 
         | Some player ->
             let targetIsInRange = IntVec.NormChebyshev (selectedTile - player.Position.Get) <= 1
-            Writer.writer {
-                match model.Entities.Get |> Map.tryFindKey (fun _ c -> c.Position.Get = selectedTile) with
+            Option.option {
+                let! targetID =
+                    model .> _.Entities |> Map.tryFindKey (fun _ c -> c.Position.Get = selectedTile)
+
+                let targetLens = model |> (_.Entities $ Map.itemLens targetID)
+
+                return
+                    match targetLens.Get with
+                    | Some (:? ICharacterSheet) when targetIsInRange ->
+                        [ attackCreature EntityID.player targetID
+                        ; environmentTurn
+                        ]
+
+                    | Some (:? IItem) when targetIsInRange ->
+                        [ ItemSystem.pickUpItem targetID EntityID.player
+                        ; Model.moveToward EntityID.player selectedTile
+                        ; environmentTurn
+                        ]
+
+                    | _ ->
+                        [ Model.PutLog "You cannot do that"
+                        ]
+
+            } |> function Some msgs -> model, msgs | None -> model, [Model.moveToward EntityID.player selectedTile; environmentTurn]
+            
+            (*Writer.writer {
+                match model .> _.Entities |> Map.values |> Seq.tryFind (fun c -> c.Position.Get = selectedTile) with
                 | Some targetID when targetIsInRange ->
                     do! Writer.write (attackCreature EntityID.player targetID)
                     do! Writer.write environmentTurn
@@ -105,6 +143,5 @@ let playerGenericAction selectedTile =
                         do! Writer.write (move EntityID.player nextPos)
                         do! Writer.write environmentTurn
 
-                return model
-            } |> Writer.unwrap
+                return model*)
     |> Msg

@@ -49,6 +49,9 @@ module ProjectUtils =
                 (betterModulo i (Seq.length xs))
                 xs
 
+    module List =
+        let prepend x xs = x :: xs
+
     module String =
         let singleton = string: char -> string
 
@@ -62,11 +65,31 @@ module ProjectUtils =
             member _.Return x = Some x
             member _.Zero() = None
 
+            member _.Delay (f: unit -> Option<'t>) = f()
+            member _.Combine (a: Option<'t>, b: Option<'u>) =
+                a |> Option.bind (fun _ -> b)
+
+            member _.ReturnFrom m = Option.bind Some m
+
         let option = OptionCEBuilder()
 
         let toResult (errorWhenNone: 'error) = function
             | Some x -> Ok x
             | None -> Error errorWhenNone
+
+    module Result =
+        type ResultCEBuilder() =
+            member _.Bind(x, k) = Result.bind k x
+            member _.Return x = Ok x
+            member _.Zero() = Ok ()
+
+            member _.Delay (f: unit -> Result<'t, 'err>) = f()
+            member _.Combine(a: Result<'T, 'Error>, b: Result<'U, 'Error>) =
+                a |> Result.bind (fun _ -> b)
+
+            member _.ReturnFrom m = Result.bind Ok m
+
+        let result = ResultCEBuilder()
 
     module State =
         type t<'s, 'a> = { RunState : 's -> 's * 'a }

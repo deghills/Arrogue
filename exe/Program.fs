@@ -1,4 +1,8 @@
 ﻿open Model
+
+open ItemSystem
+open CharacterSystem
+
 open View
 open Subscription
 
@@ -9,9 +13,10 @@ open RayPlatform
 let init =
     Writer.writer {
         do! Model.GenNewMap |> Writer.write
-        do! Model.SpawnEntityOnRandomTile (Update.Creature ("arrow", 11, 100, '@', IntVec.Zero), EntityID.player) |> Writer.write
-        do! Model.SpawnEntityOnRandomTile (Update.Creature ("goblin", 10, 100, 'g', IntVec.Zero)) |> Writer.write
-        do! Model.SpawnEntityOnRandomTile (Update.Creature ("goblin", 10, 100, 'g', IntVec.Zero)) |> Writer.write
+        do! Model.SpawnEntityOnRandomTile (Creature.Make ("arrow", '@', 12, 100), EntityID.player) |> Writer.write
+        do! Model.SpawnEntityOnRandomTile (Creature.Make ("goblin", 'g', 5, 100)) |> Writer.write
+        do! Model.SpawnEntityOnRandomTile (Creature.Make ("goblin", 'g', 5, 100)) |> Writer.write
+        do! Model.SpawnEntityOnRandomTile (Item.Make ("a coin", '$', 1)) |> Writer.write
         return Model.Make (RandomPure.Seed 632)
     } |> Writer.unwrap
 
