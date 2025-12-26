@@ -58,34 +58,29 @@ type Chest =
         member this.Contents =
             { Get = this._contents; Change = fun f -> { this with _contents = f this._contents } }
 
-let addItem (item: IItem) (entityID: EntityID) =
-    fun (model: Model) ->
-        let entityLens = model |> (_.Entities $ Map.itemLens entityID)
-        match entityLens.Get with
-        | Some (:? IContainer as container) ->
-            ( entityLens
-            <-- Some (container.Contents <-- item :: container.Contents.Get :> IBehaviour)
-            , [Model.PutLog $"{item.Name.Get} has been added to {container.Name.Get}'s inventory"]
-            )
+let addItem (item: IItem) (entityID: EntityID) = msgCE {
+    let! model: Model = Msgs.identity
+    let entityLens = model |> (_.Entities $ Map.itemLens entityID)
+    match entityLens.Get with
+    | Some (:? IContainer as container) ->
+        yield entityLens <-- Some (container.Contents <-- item :: container.Contents.Get :> IBehaviour)
+        yield! Model.PutLog $"{item.Name.Get} has been added to {container.Name.Get}'s inventory"
         
-        | _ ->
-            ( model
-            , [Model.PutLog $"ERROR: there is no container with the ID {entityID}"]
-            )
-    |> Msg
+    | _ ->
+        yield! Model.PutLog $"ERROR: there is no container with the ID {entityID}"
+}
 
-let pickUpItem (itemID: EntityID) (containerID: EntityID) =
-    fun (model: Model) ->
-        match model .> (_.Entities $ Map.itemLens itemID), model .> (_.Entities $ Map.itemLens containerID) with
-        | Some (:? IItem as item), Some (:? IContainer as container) ->
-            ( model
-                |> (_.Entities $ Map.itemLens itemID) <-- None
-                //|> (_.Entities $ Map.itemLens containerID) <-- Some (container.Contents <-* List.prepend item :> IBehaviour)
-            , [addItem item containerID]
-            )
+let pickUpItem (itemID: EntityID) (containerID: EntityID) = msgCE {
+    let! model: Model = Msgs.identity
 
-        | _ ->
-            ( model
-            , [Model.PutLog $"ERROR: there is no item with the ID {itemID} and/or there is no container with the ID {containerID}"]
-            )
-    |> Msg
+    let itemLens (m: Model) = m |> (_.Entities $ Map.itemLens itemID)
+    let containerLens (m: Model) = m |> (_.Entities $ Map.itemLens containerID)
+
+    match model .> itemLens, model .> containerLens with
+    | Some (:? IItem as item), Some (:? IContainer as container) ->
+        yield model |> (_.Entities $ Map.itemLens itemID) <-- None
+        yield! addItem item containerID
+
+    | _ ->
+        yield! Model.PutLog $"ERROR: there is no item with the ID {itemID} and/or there is no container with the ID {containerID}"
+}

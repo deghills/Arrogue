@@ -69,7 +69,39 @@ module RayPlatform =
         let darkGrey = Raylib.DARKGRAY
         let black = Raylib.BLACK
 
-    type Msg<'model> = Msg of ('model -> 'model * List<Msg<'model>>)
+    type Msg<'model> = Msg of ('model -> 'model)
+
+    type MsgBuilder() =
+        member _.Bind(Msg (f: 'model -> 'model), k: 'model -> Msg<'model>) =
+            Msg
+                (fun m ->
+                    let m' = f m
+                    let (Msg f') = k m'
+                    f' m'
+                )
+
+        member _.Return model =
+            Msg (fun _ -> model)
+
+        member this.Yield model =
+            this.Return model
+
+        member this.YieldFrom msg =
+            this.Bind (msg, this.Yield)
+
+        member this.Combine(a: Msg<'model>, b: Msg<'model>) =
+            this.Bind (a, fun _ -> b)
+
+        member _.Delay(f: unit -> Msg<'model>) = f()
+
+        member _.Zero() = Msg id
+
+        member this.For(xs: seq<'x>, k: 'x -> Msg<'model>) =
+            xs
+            |> Seq.map k
+            |> Seq.fold (fun a b -> this.Combine(a, b)) (this.Zero())
+
+    let msgCE = MsgBuilder()
 
     type IViewable<'model> = interface
         abstract member View : unit -> List<Msg<'model>>
@@ -78,6 +110,8 @@ module RayPlatform =
     end
     
     module Msgs =
+        let identity = Msg id
+
         let quit<'model>: Msg<'model> =
             let () =
                 Raylib.CloseWindow()
@@ -86,7 +120,7 @@ module RayPlatform =
 
         let changeWindowSize horz vert =
             let () = Raylib.SetWindowSize(horz, vert)
-            Msg (fun x -> x, [])
+            identity
 
     module Viewables =
         let empty<'model> = { new IViewable<'model> with member _.View() = [] }
@@ -153,7 +187,6 @@ module RayPlatform =
             | [] -> update model (rayTick model)
 
             | (Msg nextMsg) :: remaining ->
-                let (model', intermediate) = nextMsg model
-                update model' (intermediate @ remaining)
+                update (nextMsg model) remaining
 
         init ||> update

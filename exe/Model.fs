@@ -4,6 +4,7 @@ open Rogue.Lib
 open RayPlatform
 open ProjectUtils
 open Accessor
+open RandomPure
 
 type EntityID =
     | player = -69
@@ -15,7 +16,7 @@ type IBehaviour =
 
 type Model =
     { _map: Set<IntVec>
-    ; _seed: RandomPure.RandomSeed
+    ; _seed: RandomSeed
     ; _entities: Map<EntityID, IBehaviour>
     ; _logs: List<string>
     ; _zoom: int
@@ -24,7 +25,7 @@ type Model =
     static member Make(?seed, ?map, ?entities, ?logs, ?zoom) =
         { _map = defaultArg map Set.empty
         ; _entities = defaultArg entities Map.empty
-        ; _seed = defaultArg seed (RandomPure.Seed 32)
+        ; _seed = defaultArg seed (Seed 32)
         ; _logs = defaultArg logs []
         ; _zoom = defaultArg zoom 30
         }
@@ -50,60 +51,60 @@ type Model =
 
     static member PutLog log =
         fun (model: Model) ->
-            model.Logs <-- log :: model.Logs.Get, []
+            model.Logs <-- log :: model.Logs.Get
         |> Msg
 
     /// If an entity with this ID already exists, will produce a ModelLog error message instead
-    static member SpawnEntity (entity: IBehaviour, ?withID: EntityID) =
-        fun (model: Model) ->
-            let entityID = defaultArg withID model.NextID
+    static member SpawnEntity (entity: IBehaviour, ?withID: EntityID) = msgCE {
+        let! (model: Model) = Msgs.identity
 
-            match model._entities.TryFind entityID with
-            | None ->
-                model.Entities <-* Map.add entityID entity, []
+        let entityID = (defaultArg withID model.NextID)
+        let entityLens = model |> (_.Entities $ Map.itemLens entityID)
 
-            | Some _ ->
-                (model, [Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"])
-        |> Msg
+        match entityLens.Get with
+        | None -> yield entityLens <-- Some entity
+        | Some _ -> yield! Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"
+    }
 
-    static member SpawnEntityOnRandomTile (entity: IBehaviour, ?withID: EntityID) =
-        fun (model: Model) ->
-            let entityID = defaultArg withID model.NextID
-            RandomPure.randomItem
-                (Set.difference
-                    model._map
-                    (model._entities.Values |> Seq.map _.Position.Get |> Set)
-                )
+    static member SpawnEntityOnRandomTile (entity: IBehaviour, ?withID: EntityID) = msgCE {
+        let! model: Model = Msgs.identity
+        let entityID = defaultArg withID model.NextID
+
+        match
+            Set.difference
+                model._map
+                (model._entities.Values |> Seq.map _.Position.Get |> Set)
+            |> RandomPure.randomItem
             |> _.RunState(model._seed)
-            |> function
-                newSeed, newPosition ->
-                    ( model.Seed <-- newSeed
-                    , [Model.SpawnEntity (entity.Position <-- newPosition, entityID)]
-                    )
-        |> Msg
+        with
+        | newSeed, newPosition ->
+            yield model.Seed <-- newSeed
+            yield! Model.SpawnEntity (entity.Position <-- newPosition, entityID)
+    }
 
-    static member DestroyEntity (entityID: EntityID) =
-        fun (model: Model) ->
-            match model._entities.TryFind entityID with
-            | None ->
-                (model
-                , [Model.PutLog $"DestroyEntity ERROR: there is no entity with the ID {entityID}"]
-                )
-            | Some _ ->
-                model.Entities <-* Map.remove entityID, []
-        |> Msg
+    static member DestroyEntity (entityID: EntityID) = msgCE {
+        let! model: Model = Msgs.identity
 
-    static member GenNewMap =
-        fun (model: Model) ->
+        match model .> (_.Entities $ Map.itemLens entityID) with
+        | Some _ ->
+            yield model |> (_.Entities $ Map.itemLens entityID) <-- None
+        | None ->
+            yield! Model.PutLog $"DestroyEntity ERROR: there is no entity with the ID {entityID}"
+    }
+
+    static member GenNewMap = msgCE {
+        let! model: Model = Msgs.identity
+
+        yield
             BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
             |> _.RunState(model.Seed.Get)
             |> fun (newSeed, newMap) ->
                 ( model
                 |> _.Seed <-- newSeed
                 |> _.Map <-- newMap
-                ), []
-        |> Msg
-    
+                )
+    }
+
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =
     let freeTiles = Set model.Map.Get
@@ -173,25 +174,21 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
-let move entityID newPos =
-    fun (model: Model) ->
-        ( model
-        |> (_.Entities $ Map.itemLens entityID )
-        <-* Option.map (fun gp -> gp.Position <-- newPos)
-        ), []
-    |> Msg
+let move entityID newPos = msgCE {
+    match! Msgs.identity with
+    | (model: Model) ->
+        let entityLens = model |> (_.Entities $ Map.itemLens entityID)
+        yield entityLens <-* Option.map (fun gp -> gp.Position <-- newPos)
+}
 
-let moveToward entityID destination =
-    fun (model: Model) ->
+let moveToward entityID destination = msgCE {
+    let! model: Model = Msgs.identity
+    match
         model
-        |> (_.Entities $ Map.itemLens entityID)
-        |> _.Get
+        .> (_.Entities $ Map.itemLens entityID)
         |> Option.toList
         |> List.collect (fun gp -> findPath gp.Position.Get destination model)
-        |> function
-            | [] -> model, []
-            | nextPos :: _ ->
-                ( model
-                , [move entityID nextPos]
-                )
-    |> Msg
+    with
+    | [] -> yield model
+    | nextPos :: _ -> yield! move entityID nextPos
+}

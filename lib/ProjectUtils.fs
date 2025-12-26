@@ -78,6 +78,9 @@ module ProjectUtils =
             | None -> Error errorWhenNone
 
     module Result =
+        let merge (f: 'x -> 'y) (r: Result<'x, 'x>) =
+            match r with Ok x | Error x -> f x
+
         type ResultCEBuilder() =
             member _.Bind(x, k) = Result.bind k x
             member _.Return x = Ok x

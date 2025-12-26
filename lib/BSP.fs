@@ -5,6 +5,7 @@ module BSP =
     //open System
     open Rogue.Lib
     open ProjectUtils
+    open RandomPure
 
     [<RequireQualifiedAccess>]
     module Bisector =
@@ -85,8 +86,8 @@ module BSP =
 
     let randomPointWithinBounds (bounds: Bounds.t) =
         State.state {
-            let! x = RandomPure.nextInRange bounds.MinX bounds.MaxX
-            let! y = RandomPure.nextInRange bounds.MinY bounds.MaxY
+            let! (Seed x) = RandomPure.nextInRange bounds.MinX bounds.MaxX
+            let! (Seed y) = RandomPure.nextInRange bounds.MinY bounds.MaxY
 
             return Vec (x, y)
         }
@@ -130,13 +131,13 @@ module BSP =
                         try
                             if headsOrTails then
                                 State.state {
-                                    let! splitPos = RandomPure.nextInRange (bounds.MinX + minSize) (bounds.MaxX - minSize)
+                                    let! (Seed splitPos) = RandomPure.nextInRange (bounds.MinX + minSize) (bounds.MaxX - minSize)
                                     return Bounds.split (Bisector.Vertical splitPos) bounds
                                 }
 
                             else
                                 State.state {
-                                    let! splitPos = RandomPure.nextInRange (bounds.MinY + minSize) (bounds.MaxY - minSize)
+                                    let! (Seed splitPos) = RandomPure.nextInRange (bounds.MinY + minSize) (bounds.MaxY - minSize)
                                     return Bounds.split (Bisector.Horizontal splitPos) bounds
                                 }
                         with _ -> State.return_ (SplitTree.Leaf bounds)
@@ -150,10 +151,10 @@ module BSP =
     let randomSubroom minSize (bsp: SplitTree.t<Bisector.Bisector, Bounds.t>) =
         let makeBoundsSmaller (bounds: Bounds.t) =
             State.state {
-                let! width = RandomPure.nextInRange minSize bounds.Width
-                let! height = RandomPure.nextInRange minSize bounds.Height
-                let! minX = RandomPure.nextInRange bounds.MinX (bounds.MaxX - width)
-                let! minY = RandomPure.nextInRange bounds.MinY (bounds.MaxY - height)
+                let! (Seed width) = RandomPure.nextInRange minSize bounds.Width
+                let! (Seed height) = RandomPure.nextInRange minSize bounds.Height
+                let! (Seed minX) = RandomPure.nextInRange bounds.MinX (bounds.MaxX - width)
+                let! (Seed minY) = RandomPure.nextInRange bounds.MinY (bounds.MaxY - height)
                 let maxX = minX + width
                 let maxY = minY + height
                 
