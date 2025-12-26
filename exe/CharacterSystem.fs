@@ -54,9 +54,9 @@ let hurtCreature damage creatureID = msgCE {
 
         if target.Health.Get <= 0 then
             let! model = Model.PutLog $"{target.Name.Get} has died"
-            return model |> (_.Entities $ Map.itemLens creatureID) <-- None
+            yield model |> (_.Entities $ Map.itemLens creatureID) <-- None
 
-        else return model |> (_.Entities $ Map.itemLens creatureID) <-- Some target
+        else yield model |> (_.Entities $ Map.itemLens creatureID) <-- Some target
 
     | _ -> yield! Model.PutLog $"ERROR: there is no creature with the ID: {creatureID}"
 }

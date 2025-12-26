@@ -80,11 +80,8 @@ module RayPlatform =
                     f' m'
                 )
 
-        member _.Return model =
+        member _.Yield model =
             Msg (fun _ -> model)
-
-        member this.Yield model =
-            this.Return model
 
         member this.YieldFrom msg =
             this.Bind (msg, this.Yield)
