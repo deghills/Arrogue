@@ -14,17 +14,27 @@ let view (frame: FrameContext) (model: Model) =
     let middle = Vec (tilesPerHorz, tilesPerVert) / 2
 
     seq {
-        match model.Entities.Get.TryFind EntityID.player with
+        match model[EntityID.player].Get with
         | None -> ()
         | Some player ->
             let toPlayerLocalCoordinates =
                 middle - player.Position.Get
 
             for mapTile in model.Map.Get do
-                yield Text ("-", (mapTile + toPlayerLocalCoordinates) * tileSize, tileSize, Colours.green) :> IViewable<Model>
+                yield Text
+                    ( "-"
+                    , (mapTile + toPlayerLocalCoordinates) * tileSize
+                    , tileSize
+                    , Colours.green
+                    ) :> IViewable<Model>
 
             for KeyValue (_, entity) in model.Entities.Get do
-                yield Text (string entity.Token.Get, (entity.Position.Get + toPlayerLocalCoordinates) * tileSize, tileSize, Colours.green)
+                yield Text
+                    ( string entity.Token.Get
+                    , (entity.Position.Get + toPlayerLocalCoordinates) * tileSize
+                    , tileSize
+                    , Colours.green
+                    )
 
         let logWindow = { x = twoThirdsIn; y = 0; width = frame.RenderWidth / 3; height = frame.RenderHeight; colour = Colours.black; isSolid = true }
         

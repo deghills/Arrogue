@@ -60,10 +60,11 @@ type Chest =
 
 let addItem (item: IItem) (entityID: EntityID) = msgCE {
     let! model: Model = Msgs.identity
-    let entityLens = model |> (_.Entities $ Map.itemLens entityID)
-    match entityLens.Get with
+    let entity = model[entityID]
+
+    match entity.Get with
     | Some (:? IContainer as container) ->
-        yield entityLens <-- Some (container.Contents <-- item :: container.Contents.Get :> IBehaviour)
+        yield entity <-- Some (container.Contents <-- item :: container.Contents.Get :> IBehaviour)
         yield! Model.PutLog $"{item.Name.Get} has been added to {container.Name.Get}'s inventory"
         
     | _ ->
@@ -73,14 +74,10 @@ let addItem (item: IItem) (entityID: EntityID) = msgCE {
 let pickUpItem (itemID: EntityID) (containerID: EntityID) = msgCE {
     let! model: Model = Msgs.identity
 
-    let itemLens (m: Model) = m |> (_.Entities $ Map.itemLens itemID)
-    let containerLens (m: Model) = m |> (_.Entities $ Map.itemLens containerID)
-
-    match model .> itemLens, model .> containerLens with
-    | Some (:? IItem as item), Some (:? IContainer as container) ->
-        yield model |> (_.Entities $ Map.itemLens itemID) <-- None
+    match model[itemID].Get, model[containerID].Get with
+    | Some (:? IItem as item), Some (:? IContainer) ->
+        yield! Model.DestroyEntity itemID
         yield! addItem item containerID
 
-    | _ ->
-        yield! Model.PutLog $"ERROR: there is no item with the ID {itemID} and/or there is no container with the ID {containerID}"
+    | _ -> yield! Model.PutLog $"ERROR: there is no item with the ID {itemID} and/or there is no container with the ID {containerID}"
 }

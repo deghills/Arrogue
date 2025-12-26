@@ -46,6 +46,8 @@ type Model =
     member this.Zoom =
         { Get = this._zoom
         ; Change = fun f -> { this with _zoom = f this._zoom } }
+    member this.Item (entityID: EntityID) =
+        this |> (_.Entities $ Map.itemLens entityID)
 
     member this.NextID = Seq.find (not << this._entities.ContainsKey) (Seq.initInfinite enum<EntityID>)
 
@@ -59,10 +61,9 @@ type Model =
         let! (model: Model) = Msgs.identity
 
         let entityID = (defaultArg withID model.NextID)
-        let entityLens = model |> (_.Entities $ Map.itemLens entityID)
 
-        match entityLens.Get with
-        | None -> yield entityLens <-- Some entity
+        match model[entityID].Get with
+        | None -> yield model[entityID] <-- Some entity
         | Some _ -> yield! Model.PutLog $"ERROR: there is already an entity with the ID {entityID}"
     }
 
@@ -85,9 +86,9 @@ type Model =
     static member DestroyEntity (entityID: EntityID) = msgCE {
         let! model: Model = Msgs.identity
 
-        match model .> (_.Entities $ Map.itemLens entityID) with
+        match model[entityID].Get with
         | Some _ ->
-            yield model |> (_.Entities $ Map.itemLens entityID) <-- None
+            yield model[entityID] <-- None
         | None ->
             yield! Model.PutLog $"DestroyEntity ERROR: there is no entity with the ID {entityID}"
     }
@@ -174,21 +175,18 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
-let move entityID newPos = msgCE {
-    match! Msgs.identity with
-    | (model: Model) ->
-        let entityLens = model |> (_.Entities $ Map.itemLens entityID)
-        yield entityLens <-* Option.map (fun gp -> gp.Position <-- newPos)
-}
+let move newPos entityID=
+    fun (model: Model) ->
+        model[entityID] <-* Option.map (fun gamePiece -> gamePiece.Position <-- newPos)
+    |> Msg
 
-let moveToward entityID destination = msgCE {
+let moveToward destination entityID = msgCE {
     let! model: Model = Msgs.identity
     match
-        model
-        .> (_.Entities $ Map.itemLens entityID)
+        model[entityID].Get
         |> Option.toList
         |> List.collect (fun gp -> findPath gp.Position.Get destination model)
     with
     | [] -> yield model
-    | nextPos :: _ -> yield! move entityID nextPos
+    | nextPos :: _ -> yield! move nextPos entityID
 }

@@ -12,8 +12,6 @@ type ICharacterSheet = interface
     //abstract member Name : Accessor<ICharacterSheet, string>
     abstract member Strength : Accessor<ICharacterSheet, int>
     abstract member Health : Accessor<ICharacterSheet, int>
-    static member Qualify: IBehaviour -> option<ICharacterSheet> = function
-        :? ICharacterSheet as chrSht -> Some chrSht | _ -> None
 end
 
 type Creature =
@@ -44,9 +42,8 @@ type Creature =
 
 let hurtCreature damage creatureID = msgCE {
     let! model: Model = Msgs.identity
-    let creatureLens (m: Model) = m |> (_.Entities $ Map.itemLens creatureID)
 
-    match model .> creatureLens with
+    match model[creatureID].Get with
     | Some (:? ICharacterSheet as target) ->
         let target = target.Health <-* (fun health -> health - damage)
         
@@ -54,19 +51,17 @@ let hurtCreature damage creatureID = msgCE {
 
         if target.Health.Get <= 0 then
             let! model = Model.PutLog $"{target.Name.Get} has died"
-            yield model |> (_.Entities $ Map.itemLens creatureID) <-- None
+            yield model[creatureID] <-- None
 
-        else yield model |> (_.Entities $ Map.itemLens creatureID) <-- Some target
+        else yield model[creatureID] <-- Some target
 
     | _ -> yield! Model.PutLog $"ERROR: there is no creature with the ID: {creatureID}"
 }
 
 let attackCreature attackerID defenderID = msgCE {
     let! model: Model = Msgs.identity
-    match
-        model .> (_.Entities $ Map.itemLens attackerID),
-        model .> (_.Entities $ Map.itemLens defenderID)
-    with
+
+    match model[attackerID].Get, model[defenderID].Get with
     | Some (:? ICharacterSheet as attacker), Some (:? ICharacterSheet) ->
         yield! hurtCreature (attacker.Strength.Get) defenderID
 
@@ -76,13 +71,12 @@ let attackCreature attackerID defenderID = msgCE {
 let creatureAI creatureID = msgCE {
     let! model: Model = Msgs.identity
     match
-        model .> (_.Entities $ Map.itemLens creatureID),
-        model .> (_.Entities $ Map.itemLens EntityID.player)
+        model[creatureID].Get, model[EntityID.player].Get
     with
     | Some (:? ICharacterSheet as creature), Some (:? ICharacterSheet as player) when creatureID <> EntityID.player ->
         if IntVec.NormChebyshev (player.Position.Get - creature.Position.Get) <= 1
             then yield! attackCreature creatureID EntityID.player
-            else yield! moveToward creatureID player.Position.Get
+            else yield! moveToward player.Position.Get creatureID
         
     | _ -> yield! Msgs.identity
 }
@@ -96,41 +90,37 @@ let environmentTurn = msgCE {
 let playerGenericAction selectedTile = msgCE {
     let! model: Model = Msgs.identity
     
-    yield!
-        Result.result {
-            let! player =
-                model
-                .> (_.Entities $ Map.itemLens EntityID.player)
-                |> Option.toResult Msgs.identity
+    yield! Result.result {
+        let! player =
+            model[EntityID.player].Get
+            |> Option.toResult Msgs.identity
         
-            let! targetID =
-                model
-                .> _.Entities
-                |> Map.tryFindKey (fun _ c -> c.Position.Get = selectedTile)
-                |> Option.toResult
-                    (msgCE { yield! Model.moveToward EntityID.player selectedTile; yield! environmentTurn})
+        let! targetID =
+            model
+            .> _.Entities
+            |> Map.tryFindKey (fun _ c -> c.Position.Get = selectedTile)
+            |> Option.toResult
+                (msgCE { yield! Model.moveToward selectedTile EntityID.player; yield! environmentTurn})
 
-            let targetIsInRange = IntVec.NormChebyshev (selectedTile - player.Position.Get) <= 1
-            let targetLens = model |> (_.Entities $ Map.itemLens targetID)
+        let targetIsInRange = IntVec.NormChebyshev (selectedTile - player.Position.Get) <= 1
 
-            return!
-                match targetLens.Get with
-                | Some (:? ICharacterSheet) when targetIsInRange ->
-                    msgCE {
-                        yield! attackCreature EntityID.player targetID
-                        yield! environmentTurn
-                    } |> Ok
+        return!
+            match model[targetID].Get with
+            | Some (:? ICharacterSheet) when targetIsInRange ->
+                msgCE {
+                    yield! attackCreature EntityID.player targetID
+                    yield! environmentTurn
+                } |> Ok
 
-                | Some (:? IItem) when targetIsInRange ->
-                    msgCE {
-                        yield! ItemSystem.pickUpItem targetID EntityID.player
-                        yield! Model.moveToward EntityID.player selectedTile
-                        yield! environmentTurn
-                    } |> Ok
+            | Some (:? IItem) when targetIsInRange ->
+                msgCE {
+                    yield! ItemSystem.pickUpItem targetID EntityID.player
+                    yield! Model.moveToward selectedTile EntityID.player
+                    yield! environmentTurn
+                } |> Ok
 
-                | _ ->
-                    msgCE {
-                        yield! Model.PutLog "You cannot do that"
-                    } |> Error
-        } |> Result.merge id
+            | _ ->
+                Model.PutLog "You cannot do that" |> Error
+
+    } |> Result.merge id
 }
