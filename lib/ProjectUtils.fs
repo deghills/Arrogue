@@ -117,6 +117,9 @@ module ProjectUtils =
             member _.Return x = return_ x
             member _.ReturnFrom m = bind return_ m
             member _.Zero() = return_ ()
+            member _.Combine(a: t<'s, 'a>, b: t<'s, 'b>) =
+                a |> bind (fun _ -> b)
+            member _.Delay (f: unit -> t<'s, 'a>) = f()
 
         let state = StateBuilder()
 

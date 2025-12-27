@@ -9,6 +9,7 @@
     <Compile Include="Accessor.fs" />
     <Compile Include="ProjectUtils.fs" />
     <Compile Include="IntVec.fs" />
+    <Compile Include="Bounds.fs" />
     <Compile Include="RayPlatform.fs" />
     <Compile Include="SplitTree.fs" />
     <Compile Include="RandomPure.fs" />

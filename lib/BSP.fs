@@ -7,21 +7,10 @@ module BSP =
     open ProjectUtils
     open RandomPure
 
-    [<RequireQualifiedAccess>]
-    module Bisector =
-        type Bisector = Horizontal of int | Vertical of int
+    type Bisector = Horizontal of int | Vertical of int
 
-    [<RequireQualifiedAccess>]
     module Bounds =
-        type t (minX, maxX, minY, maxY) =
-            member _.MinX = min minX maxX
-            member _.MinY = min minY maxY
-            member _.MaxX = max minX maxX
-            member _.MaxY = max minY maxY
-            member this.Width = this.MaxX - this.MinX
-            member this.Height = this.MaxY - this.MinY
-
-        let split bisector (bounds: t) =
+        let split bisector (bounds: Bounds) =
             let (|OutOfBounds|_|) = function
                 | Bisector.Horizontal translation when translation <= bounds.MinY || translation >= bounds.MaxY -> true
                 | Bisector.Vertical translation when translation <= bounds.MinX || translation >= bounds.MaxX -> true
@@ -32,36 +21,18 @@ module BSP =
 
             | Bisector.Horizontal translation ->
                 SplitTree.Branch
-                    ( SplitTree.Leaf (t (bounds.MinX, bounds.MaxX, bounds.MinY, translation))
+                    ( SplitTree.Leaf (Bounds (bounds.MinX, bounds.MaxX, bounds.MinY, translation))
                     , bisector
-                    , SplitTree.Leaf (t (bounds.MinX, bounds.MaxX, translation, bounds.MaxY))
+                    , SplitTree.Leaf (Bounds (bounds.MinX, bounds.MaxX, translation, bounds.MaxY))
                     )
 
             | Bisector.Vertical translation ->
                 SplitTree.Branch
-                    ( SplitTree.Leaf (t (bounds.MinX, translation, bounds.MinY, bounds.MaxY))
+                    ( SplitTree.Leaf (Bounds (bounds.MinX, translation, bounds.MinY, bounds.MaxY))
                     , bisector
-                    , SplitTree.Leaf (t (translation, bounds.MaxX, bounds.MinY, bounds.MaxY))
+                    , SplitTree.Leaf (Bounds (translation, bounds.MaxX, bounds.MinY, bounds.MaxY))
                     )
 
-        let containsPoint (Vec (x, y)) (bounds: t) =
-            bounds.MinX <= x && x < bounds.MaxX &&
-            bounds.MinY <= y && y < bounds.MaxY
-
-        let containedPoints (bounds: t) =
-            seq
-                { for i in bounds.MinX .. bounds.MaxX - 1 do
-                    for j in bounds.MinY .. bounds.MaxY - 1 do
-                        yield Vec(i, j)
-                }
-
-        let smallestBindingPoints (points: IntVec list) =
-            let minX = points |> Seq.map _.X |> Seq.min
-            let minY = points |> Seq.map _.Y |> Seq.min
-            let maxX = points |> Seq.map _.X |> Seq.max
-            let maxY = points |> Seq.map _.Y |> Seq.max
-
-            t (minX, maxX + 1, minY, maxY + 1)
 
     let split n tree =
         let rec aux remaining t =
@@ -69,7 +40,7 @@ module BSP =
             | Positive, SplitTree.Branch (l, bisector, r) ->
                 SplitTree.Branch (aux remaining l, bisector, aux remaining r)
 
-            | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
+            | Positive, SplitTree.Leaf (bounds: Bounds) ->
                 let width, height = bounds.MaxX - bounds.MinX, bounds.MaxY - bounds.MinY
                 aux
                     (remaining - 1)
@@ -81,10 +52,10 @@ module BSP =
             | _ -> t
         in aux n tree
 
-    let shrink n (bounds: Bounds.t) =
-        Bounds.t (bounds.MinX + n, bounds.MaxX - n, bounds.MinY + n, bounds.MaxY - n)
+    let shrink n (bounds: Bounds) =
+        Bounds (bounds.MinX + n, bounds.MaxX - n, bounds.MinY + n, bounds.MaxY - n)
 
-    let randomPointWithinBounds (bounds: Bounds.t) =
+    let randomPointWithinBounds (bounds: Bounds) =
         State.state {
             let! (Seed x) = RandomPure.nextInRange bounds.MinX bounds.MaxX
             let! (Seed y) = RandomPure.nextInRange bounds.MinY bounds.MaxY
@@ -92,7 +63,7 @@ module BSP =
             return Vec (x, y)
         }
         
-    let randomConnect (leftRoom: List<Bounds.t>) (rightRoom: List<Bounds.t>) =
+    let randomConnect (leftRoom: List<Bounds>) (rightRoom: List<Bounds>) =
         State.state {
             let! leftAnchor =
                 RandomPure.randomItem leftRoom
@@ -107,8 +78,8 @@ module BSP =
             return
                 [ yield! leftRoom
                 ; yield! rightRoom
-                ; yield Bounds.smallestBindingPoints [leftAnchor; intersect]
-                ; yield Bounds.smallestBindingPoints [rightAnchor; intersect]
+                ; yield Bounds.SmallestBindingPoints [leftAnchor; intersect]
+                ; yield Bounds.SmallestBindingPoints [rightAnchor; intersect]
                 ]
         }
 
@@ -123,7 +94,7 @@ module BSP =
                     return SplitTree.Branch (l', bisector, r')
                 }
 
-            | Positive, SplitTree.Leaf (bounds: Bounds.t) ->
+            | Positive, SplitTree.Leaf (bounds: Bounds) ->
                 State.state {
                     let! headsOrTails = RandomPure.coinFlip
 
@@ -148,8 +119,8 @@ module BSP =
             | _ -> State.return_ t
         in aux n tree
 
-    let randomSubroom minSize (bsp: SplitTree.t<Bisector.Bisector, Bounds.t>) =
-        let makeBoundsSmaller (bounds: Bounds.t) =
+    let randomSubroom minSize (bsp: SplitTree.t<Bisector, Bounds>) =
+        let makeBoundsSmaller (bounds: Bounds) =
             State.state {
                 let! (Seed width) = RandomPure.nextInRange minSize bounds.Width
                 let! (Seed height) = RandomPure.nextInRange minSize bounds.Height
@@ -158,7 +129,7 @@ module BSP =
                 let maxX = minX + width
                 let maxY = minY + height
                 
-                return Bounds.t (minX, maxX, minY, maxY)
+                return Bounds (minX, maxX, minY, maxY)
             }
 
         let rec mapWithState (mapping: 'a -> State.t<'state, 'b>) : SplitTree.t<'bisector, 'a> -> State.t<'state, SplitTree.t<'bisector, 'b>> = function
@@ -173,7 +144,7 @@ module BSP =
 
         in mapWithState makeBoundsSmaller bsp
 
-    let randomPaths (bsp: SplitTree.t<Bisector.Bisector, Bounds.t>) =
+    let randomPaths (bsp: SplitTree.t<Bisector, Bounds>) =
         bsp
         |> SplitTree.map (List.singleton >> State.return_)
         |> SplitTree.interpret
@@ -194,5 +165,5 @@ module BSP =
         |> State.bind (randomSubroom minRoomSize)
         |> (SplitTree.map >> State.map) (shrink 1)
         |> State.bind randomPaths
-        |> State.map (Seq.collect Bounds.containedPoints)
+        |> State.map (Seq.collect Bounds.ContainedPoints)
         |> State.map Set
