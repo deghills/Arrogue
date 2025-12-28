@@ -9,9 +9,13 @@ type Bounds (minX, maxX, minY, maxY) =
     member this.Height = this.MaxY - this.MinY
 
 
-    static member ContainsPoint (Vec (x, y)) (bounds: Bounds) =
-        bounds.MinX <= x && x < bounds.MaxX &&
-        bounds.MinY <= y && y < bounds.MaxY
+    static member ContainsPoint (x, y) =
+        fun (bounds: Bounds) ->
+            bounds.MinX <= x && x < bounds.MaxX &&
+            bounds.MinY <= y && y < bounds.MaxY
+
+    static member ContainsPoint (Vec (x, y)) =
+        Bounds.ContainsPoint (x, y)
 
     static member ContainedPoints (bounds: Bounds) =
         seq

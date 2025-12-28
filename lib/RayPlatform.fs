@@ -122,15 +122,40 @@ module RayPlatform =
     module Viewables =
         let empty<'model> = { new IViewable<'model> with member _.View() = [] }
 
-        type Text<'model> (msg: string, posX: int, posY: int, fontSize: int, ?colour: Color) = class
-            new (msg: string, pos: IntVec, fontSize: int, ?colour: Color) =
-                Text (msg, pos.X, pos.Y, fontSize, defaultArg colour Raylib.GREEN)
+        type Text<'model> =
+            { Body: string
+            ; Pos: IntVec
+            ; FontSize: int
+            ; Colour: Colour
+            } interface IViewable<'model> with
+                member this.View() = let () = Raylib.DrawText(this.Body, this.Pos.X, this.Pos.Y, this.FontSize, this.Colour) in []
 
-            member _.Measure(frame: FrameContext) = Raylib.MeasureText(msg, fontSize)
+        type TextButton<'model> =
+            { Body: string
+            ; Pos: IntVec
+            ; FontSize: int
+            ; Colour: Colour
+            ; OnLeftClick: Msg<'model>
+            ; OnRightClick: Msg<'model>
+            } interface IViewable<'model> with
+                member this.View() =
+                    let bounds =
+                        ( this.Pos.X
+                        , this.Pos.X + (Raylib.MeasureText(this.Body, this.FontSize))
+                        , this.Pos.Y
+                        , this.Pos.Y + this.FontSize
+                        ) |> Bounds
+                    
+                    let isHovered = Bounds.ContainsPoint (Raylib.GetMouseX(), Raylib.GetMouseY()) bounds
 
-            interface IViewable<'model> with
-                member _.View() = let () = Raylib.DrawText(msg, posX, posY, fontSize, defaultArg colour Raylib.GREEN) in []
-        end
+                    Raylib.DrawText (this.Body, this.Pos.X, this.Pos.Y, this.FontSize, if isHovered then Raylib.PINK else this.Colour)
+
+                    [ if isHovered && Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) then
+                        yield this.OnLeftClick
+
+                    ; if isHovered && Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_RIGHT) then
+                        yield this.OnRightClick
+                    ]
 
         [<Struct>]
         type Rect<'model> =
