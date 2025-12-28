@@ -97,7 +97,7 @@ type Model =
         let! model: Model = Msgs.identity
 
         yield
-            BSP.genRandomMap (BSP.Bounds.t (0, 64, 0, 32)) 4 4
+            BSP.genRandomMap (Bounds (0, 64, 0, 32)) 4 4
             |> _.RunState(model.Seed.Get)
             |> fun (newSeed, newMap) ->
                 ( model

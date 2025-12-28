@@ -17,7 +17,7 @@ let init =
         do! Model.SpawnEntityOnRandomTile (Creature.Make ("goblin", 'g', 5, 100)) |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Creature.Make ("goblin", 'g', 5, 100)) |> Writer.write
         do! Model.SpawnEntityOnRandomTile (Item.Make ("a coin", '$', 1)) |> Writer.write
-        return Model.Make (RandomPure.Seed 633)
+        return Model.Make (RandomPure.Seed (System.Random().Next()))
     } |> Writer.unwrap
 
 RayPlatform.run

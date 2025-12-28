@@ -21,20 +21,20 @@ let view (frame: FrameContext) (model: Model) =
                 middle - player.Position.Get
 
             for mapTile in model.Map.Get do
-                yield Text
-                    ( "-"
-                    , (mapTile + toPlayerLocalCoordinates) * tileSize
-                    , tileSize
-                    , Colours.green
-                    ) :> IViewable<Model>
+                yield
+                    { Body = "-"
+                    ; Pos = (mapTile + toPlayerLocalCoordinates) * tileSize
+                    ; FontSize = tileSize
+                    ; Colour = Colours.green
+                    } :> IViewable<Model>
 
             for KeyValue (_, entity) in model.Entities.Get do
-                yield Text
-                    ( string entity.Token.Get
-                    , (entity.Position.Get + toPlayerLocalCoordinates) * tileSize
-                    , tileSize
-                    , Colours.green
-                    )
+                yield
+                    { Body = string entity.Token.Get
+                    ; Pos = (entity.Position.Get + toPlayerLocalCoordinates) * tileSize
+                    ; FontSize = tileSize
+                    ; Colour = Colours.green
+                    }
 
         let logWindow = { x = twoThirdsIn; y = 0; width = frame.RenderWidth / 3; height = frame.RenderHeight; colour = Colours.black; isSolid = true }
         
@@ -44,11 +44,10 @@ let view (frame: FrameContext) (model: Model) =
             model.Logs.Get
             |> Seq.mapi
                 (fun i log ->
-                    ( log
-                    , twoThirdsIn
-                    , frame.RenderHeight - (i + 1) * fontSize
-                    , fontSize
-                    , Colours.green
-                    ) |> Text :> IViewable<Model>
+                    { Body = log
+                    ; Pos = Vec ( twoThirdsIn, frame.RenderHeight - (i + 1) * fontSize )
+                    ; FontSize = fontSize
+                    ; Colour = Colours.green
+                    } :> IViewable<Model>
                 )
     } |> Seq.fold IViewable.Compose Viewables.empty<Model>
