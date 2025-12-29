@@ -94,6 +94,9 @@ let playerGenericAction selectedTile = msgCE {
         let! player =
             model[EntityID.player].Get
             |> Option.toResult Msgs.identity
+
+        if player.Position.Get = selectedTile then
+            do! Model.PutLog $"""{player.Name.Get}: "What was that?" """ |> Error
         
         let! targetID =
             model
@@ -118,6 +121,12 @@ let playerGenericAction selectedTile = msgCE {
             | Some (:? IItem) when targetIsInRange ->
                 msgCE {
                     yield! ItemSystem.pickUpItem targetID EntityID.player
+                    yield! Model.moveToward selectedTile EntityID.player
+                    yield! environmentTurn
+                } |> Ok
+
+            | Some _ ->
+                msgCE {
                     yield! Model.moveToward selectedTile EntityID.player
                     yield! environmentTurn
                 } |> Ok

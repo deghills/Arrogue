@@ -12,29 +12,35 @@ let view (frame: FrameContext) (model: Model) =
     let tilesPerHorz = twoThirdsIn / tileSize + 1
     let tilesPerVert = frame.RenderHeight / tileSize + 1
     let middle = Vec (tilesPerHorz, tilesPerVert) / 2
+    let playerPos =
+        model[EntityID.player].Get
+        |> Option.map _.Position.Get
+        |> Option.defaultValue IntVec.Zero
+
+    let worldToScreen (point: IntVec) =
+        (point + (middle - playerPos)) * tileSize
+
+    let screenToWorld (point: IntVec) =
+        point / tileSize - (middle - playerPos)
 
     seq {
         match model[EntityID.player].Get with
         | None -> ()
         | Some player ->
-            let toPlayerLocalCoordinates =
-                middle - player.Position.Get
-
-            for mapTile in model.Map.Get do
-                yield
-                    { Body = "-"
-                    ; Pos = (mapTile + toPlayerLocalCoordinates) * tileSize
+            for KeyValue (pos, token)
+                in  [ for mapTile in model.Map.Get do yield (mapTile, '-')
+                    ; for KeyValue (_, entity) in model.Entities.Get do yield (entity.Position.Get, entity.Token.Get)
+                    ]
+                    |> Map
+                
+                do yield
+                    { Body = string token
+                    ; Pos = worldToScreen pos
                     ; FontSize = tileSize
                     ; Colour = Colours.green
+                    ; OnLeftClick = CharacterSystem.playerGenericAction pos
+                    ; OnRightClick = Msgs.identity
                     } :> IViewable<Model>
-
-            for KeyValue (_, entity) in model.Entities.Get do
-                yield
-                    { Body = string entity.Token.Get
-                    ; Pos = (entity.Position.Get + toPlayerLocalCoordinates) * tileSize
-                    ; FontSize = tileSize
-                    ; Colour = Colours.green
-                    }
 
         let logWindow = { x = twoThirdsIn; y = 0; width = frame.RenderWidth / 3; height = frame.RenderHeight; colour = Colours.black; isSolid = true }
         
@@ -50,4 +56,5 @@ let view (frame: FrameContext) (model: Model) =
                     ; Colour = Colours.green
                     } :> IViewable<Model>
                 )
+
     } |> Seq.fold IViewable.Compose Viewables.empty<Model>

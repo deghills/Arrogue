@@ -1,2 +1,4 @@
+-seriously do some cleanup, factor out RayPlatform into its own lib probably, why do I have like 3 different rectangle types
+-possibly combine view and subscriptions into a single "mediator"
 -Click behaviour
 -Make only some entities block pathfinding, so creatures can pathfind through items etc

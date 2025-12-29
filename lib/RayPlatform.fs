@@ -122,6 +122,31 @@ module RayPlatform =
     module Viewables =
         let empty<'model> = { new IViewable<'model> with member _.View() = [] }
 
+        [<Struct>]
+        type Rect<'model> =
+            { x: int
+            ; y: int
+            ; width: int
+            ; height: int
+            ; colour: Colour
+            ; isSolid: bool
+            }
+            interface IViewable<'model> with
+                member this.View() =
+                    let () =
+                        (this.x, this.y, this.width, this.height, this.colour)
+                        |> if this.isSolid then Raylib.DrawRectangle else Raylib.DrawRectangleLines
+                    []
+
+            static member OfBounds (bounds: Bounds, colour: Colour, ?isSolid) =
+                { x = bounds.MinX
+                ; y = bounds.MinY
+                ; width = bounds.MaxX - bounds.MinX
+                ; height = bounds.MaxY - bounds.MinY
+                ; colour = colour
+                ; isSolid = defaultArg isSolid false
+                }
+
         type Text<'model> =
             { Body: string
             ; Pos: IntVec
@@ -139,16 +164,26 @@ module RayPlatform =
             ; OnRightClick: Msg<'model>
             } interface IViewable<'model> with
                 member this.View() =
+                    let boundingRect =
+                        { x = this.Pos.X
+                        ; y = this.Pos.Y
+                        ; width = Raylib.MeasureText(this.Body, this.FontSize) |> max this.FontSize
+                        ; height = this.FontSize
+                        ; colour = Colours.green
+                        ; isSolid = false
+                        }
+                    
                     let bounds =
-                        ( this.Pos.X
-                        , this.Pos.X + (Raylib.MeasureText(this.Body, this.FontSize))
-                        , this.Pos.Y
-                        , this.Pos.Y + this.FontSize
+                        ( boundingRect.x
+                        , boundingRect.x + boundingRect.width
+                        , boundingRect.y
+                        , boundingRect.y + boundingRect.height
                         ) |> Bounds
                     
                     let isHovered = Bounds.ContainsPoint (Raylib.GetMouseX(), Raylib.GetMouseY()) bounds
 
                     Raylib.DrawText (this.Body, this.Pos.X, this.Pos.Y, this.FontSize, if isHovered then Raylib.PINK else this.Colour)
+                    if isHovered then Raylib.DrawRectangleLines(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height, Colours.green)
 
                     [ if isHovered && Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT) then
                         yield this.OnLeftClick
@@ -156,22 +191,6 @@ module RayPlatform =
                     ; if isHovered && Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_RIGHT) then
                         yield this.OnRightClick
                     ]
-
-        [<Struct>]
-        type Rect<'model> =
-            { x: int
-            ; y: int
-            ; width: int
-            ; height: int
-            ; colour: Colour
-            ; isSolid: bool
-            }
-            interface IViewable<'model> with
-                member this.View() =
-                    let () =
-                        (this.x, this.y, this.width, this.height, this.colour)
-                        |> if this.isSolid then Raylib.DrawRectangle else Raylib.DrawRectangleLines
-                    []
 
     let run
         (cfg: Config)
