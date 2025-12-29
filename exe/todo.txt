@@ -1,4 +1,11 @@
 -seriously do some cleanup, factor out RayPlatform into its own lib probably, why do I have like 3 different rectangle types
+
+-Performance is an issue.
+	Try:
+		moving away from RTTI-powered polymorphism, data orientation is GOOD
+		maybe doing some optimizations in A* implementation
+		switch to an imperative model?
+
 -possibly combine view and subscriptions into a single "mediator"
--Click behaviour
+
 -Make only some entities block pathfinding, so creatures can pathfind through items etc
