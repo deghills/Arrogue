@@ -109,14 +109,17 @@ type Model =
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =
     let freeTiles =
-        Set.difference
-            (Set model.Map.Get)
-            ( model._entities.Values
-            |> Seq.map _.Position.Get
-            |> Set
-            |> Set.remove finish
-            |> Set.remove start
-            )
+        if model._map.Contains finish then
+            Set.difference
+                (Set model.Map.Get)
+                ( model._entities.Values
+                |> Seq.map _.Position.Get
+                |> Set
+                |> Set.remove finish
+                |> Set.remove start
+                )
+
+        else Set.empty
             
     let getNeighbours (p: IntVec) =
         Set.intersect
