@@ -29,7 +29,7 @@ let subscriptions (frame: FrameContext) (model: Model) =
     ; if frame[KeyboardKey.KEY_MINUS].IsPressed then
         yield Msg (fun m -> m.Zoom <-- max (m.Zoom.Get - 2) 16)
 
-    ; if (1f / frame.Frametime) < 60f then
-        yield Model.PutLog $"Low FPS warning: {frame.Frametime}FPS"
+    ; let fps = (1f / frame.Frametime) in
+        if fps < 60f then yield Model.PutLog $"Low FPS warning: {fps}FPS"
     
     ]
