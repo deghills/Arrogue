@@ -7,7 +7,7 @@ open Viewables
 
 let view (frame: FrameContext) (model: Model) =
     let tileSize = model.Zoom.Get * 13 / 10
-    let fontSize = frame.RenderWidth / 60
+    let fontSize = frame.RenderWidth / 70
     let twoThirdsIn = frame.RenderWidth * 2 / 3
     let tilesPerHorz = twoThirdsIn / tileSize + 1
     let tilesPerVert = frame.RenderHeight / tileSize + 1

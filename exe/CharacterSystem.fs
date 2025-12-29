@@ -99,8 +99,11 @@ let playerGenericAction selectedTile = msgCE {
             model
             .> _.Entities
             |> Map.tryFindKey (fun _ c -> c.Position.Get = selectedTile)
-            |> Option.toResult
-                (msgCE { yield! Model.moveToward selectedTile EntityID.player; yield! environmentTurn})
+            |> Option.toResult (msgCE {
+                match Model.findPath player.Position.Get selectedTile model with
+                | nextTile :: _ -> yield! move nextTile EntityID.player; yield! environmentTurn
+                | [] -> yield! Model.PutLog "you cannot do that"
+            })
 
         let targetIsInRange = IntVec.NormChebyshev (selectedTile - player.Position.Get) <= 1
 

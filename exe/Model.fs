@@ -108,7 +108,15 @@ type Model =
 
 ///Dijkstra/A* (Chebyshev norm heuristic)
 let findPath (start: IntVec) (finish: IntVec) (model: Model) =
-    let freeTiles = Set model.Map.Get
+    let freeTiles =
+        Set.difference
+            (Set model.Map.Get)
+            ( model._entities.Values
+            |> Seq.map _.Position.Get
+            |> Set
+            |> Set.remove finish
+            |> Set.remove start
+            )
             
     let getNeighbours (p: IntVec) =
         Set.intersect
@@ -175,10 +183,16 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
         | path -> path
     in aux Map.empty (Map.add start (0, None) Map.empty)
 
-let move newPos entityID=
-    fun (model: Model) ->
-        model[entityID] <-* Option.map (fun gamePiece -> gamePiece.Position <-- newPos)
-    |> Msg
+let move newPos entityID = msgCE {
+    let! model: Model = Msgs.identity
+    let isVacant = model._entities.Values |> Seq.forall (fun entity -> entity.Position.Get <> newPos)
+    match model[entityID].Get with
+    | Some entity ->
+        yield model[entityID] <-- Some (entity.Position <-- newPos)
+
+    | _ ->
+        yield! Model.PutLog $"ERROR: missing entity at ID {entityID}"
+}    
 
 let moveToward destination entityID = msgCE {
     let! model: Model = Msgs.identity

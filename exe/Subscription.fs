@@ -24,9 +24,9 @@ let subscriptions (frame: FrameContext) (model: Model) =
         | None -> ()
 
     ; if frame[KeyboardKey.KEY_EQUAL].IsPressed then
-        yield Msg (fun m -> m.Zoom <-- m.Zoom.Get + 2)
+        yield Msg (fun m -> m.Zoom <-- min (m.Zoom.Get + 2) 32)
 
     ; if frame[KeyboardKey.KEY_MINUS].IsPressed then
-        yield Msg (fun m -> m.Zoom <-- m.Zoom.Get - 2)
+        yield Msg (fun m -> m.Zoom <-- max (m.Zoom.Get - 2) 16)
     
     ]
