@@ -2,9 +2,8 @@
 
 -Performance is an issue.
 	Try:
-		moving away from RTTI-powered polymorphism, data orientation is GOOD
-		maybe doing some optimizations in A* implementation
-		switch to an imperative model?
+		A* implementation is really slow
+		Maybe look into just generating a dijkstra map instead
 
 -possibly combine view and subscriptions into a single "mediator"
 
