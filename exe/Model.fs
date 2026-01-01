@@ -1,6 +1,7 @@
 ﻿module Model
 
 open Rogue.Lib
+open Rogue.Lib.Data
 open RayPlatform
 open ProjectUtils
 open Accessor
@@ -135,56 +136,57 @@ let findPath (start: IntVec) (finish: IntVec) (model: Model) =
             )
             freeTiles
 
-    let rec aux (visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, int*option<IntVec>>) =
+    // tie-breaking with the Manhattan distance here will choose the most natural looking optimal path
+    //(visitedTiles: Map<IntVec, IntVec>) (priorityQueue: Map<IntVec, int*option<IntVec>>) =
+    let rec aux (visitedTiles: Set<IntVec>) (priorityQueue: PriorityQ<int * IntVec>) (dijkstraMap: Map<IntVec, IntVec * int>) =
+
         let rec checkPath acc current =
-            match Map.tryFind current visitedTiles with
-            | Some next ->
-                checkPath (current :: acc) next
-            | None when current = start ->
-                acc
-            | None ->
-                [] //no path exists
+            match Map.tryFind current dijkstraMap with
+            | Some (next, _) -> checkPath (current :: acc) next
+
+            | None when current = start -> acc
+
+            | None -> [] //no path exists
 
         match checkPath [] finish with
         | [] ->
-            match
-                priorityQueue
-                |> Map.toSeq
-                |> Seq.tryMinBy (function pos1, (dist1, _) -> dist1, IntVec.NormManhattan(finish - pos1))
-                // tie-breaking with the Manhattan distance here will choose the most natural looking optimal path
-            with
-            | None -> [] //queue is empty, no path exists
-            | Some (currentTile, (currentDist, previousTileOpt)) ->
+            match PriorityQ.Pop priorityQueue with
+            | _, None -> [] // queue is empty and no path exists
+
+            | priorityQueue, Some (_, currentTile) when visitedTiles.Contains currentTile ->
+                aux visitedTiles priorityQueue dijkstraMap
+
+            | priorityQ, Some (currentDistance, currentTile) ->
 
             let neighbours =
                 Set.difference
                     (getNeighbours currentTile)
-                    (Set visitedTiles.Keys)
+                    visitedTiles
                 |> Set.remove start
-            let newDist = currentDist + 1 + (*heuristic*)(IntVec.NormChebyshev (finish - currentTile))
-            let (|HigherCostDistance|_|) i = i > newDist
-            
-            aux
-                ( match previousTileOpt with
-                | Some previousTile ->
-                    Map.add currentTile previousTile visitedTiles
-                | None ->
-                    visitedTiles )
 
-                ( Set.fold
-                    (fun acc neighbour ->
-                        match Map.tryFind neighbour acc with
-                        | None
-                        | Some (HigherCostDistance, _)
-                            -> Map.add neighbour (newDist, Some currentTile) acc
-                        | _ -> acc
-                    )
-                    priorityQueue
-                    neighbours
-                |> Map.remove currentTile )
+            let newDist = currentDistance + 1 + (*heuristic*)(IntVec.NormChebyshev (finish - currentTile))
+            let (|HigherCostDistance|_|) oldDist = oldDist > newDist
+
+            let previousTileAndDistance = dijkstraMap.TryFind currentTile
+            
+            Set.fold
+                (fun (qAcc: PriorityQ<int*IntVec>, mapAcc: Map<IntVec, IntVec * int>) neighbour ->
+                    match Map.tryFind neighbour mapAcc with
+                    | None
+                    | Some (_, HigherCostDistance) ->
+                        ( PriorityQ.Insert (newDist, neighbour) qAcc
+                        , Map.add neighbour (currentTile, newDist) mapAcc
+                        ) : PriorityQ<int*IntVec> * Map<IntVec, IntVec * int>
+                        
+                    | _ -> (qAcc, mapAcc)
+                )
+                (priorityQueue, dijkstraMap)
+                neighbours
+
+            ||> aux (visitedTiles.Add currentTile)
 
         | path -> path
-    in aux Map.empty (Map.add start (0, None) Map.empty)
+    in aux Set.empty (PriorityQ [0, start]) Map.empty
 
 let move newPos entityID = msgCE {
     let! model: Model = Msgs.identity
