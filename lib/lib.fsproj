@@ -8,11 +8,11 @@
   <ItemGroup>
     <Compile Include="Accessor.fs" />
     <Compile Include="ProjectUtils.fs" />
-    <Compile Include="BinaryTree.fs" />
-    <Compile Include="PriorityQ.fs" />
     <Compile Include="IntVec.fs" />
     <Compile Include="Bounds.fs" />
     <Compile Include="RayPlatform.fs" />
+    <Compile Include="BinaryTree.fs" />
+    <Compile Include="PriorityQ.fs" />
     <Compile Include="SplitTree.fs" />
     <Compile Include="RandomPure.fs" />
     <Compile Include="BSP.fs" />

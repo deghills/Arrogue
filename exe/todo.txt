@@ -1,10 +1,9 @@
--seriously do some cleanup, factor out RayPlatform into its own lib probably, why do I have like 3 different rectangle types
+-remove redundancy between SplitTree and BinaryTree
 
--Performance is an issue.
-	Try:
-		A* implementation is really slow
-		Maybe look into just generating a dijkstra map instead
+-seriously do some cleanup, factor out RayPlatform into its own lib probably, why do I have like 3 different rectangle types
 
 -possibly combine view and subscriptions into a single "mediator"
 
 -Make only some entities block pathfinding, so creatures can pathfind through items etc
+
+-try parallelizing pathfinding for multiple entities
